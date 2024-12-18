@@ -100,3 +100,4 @@ leafFolder class
 - upload  scaled images
 - add exception handling
 - add error handling in process_folder
+- tmp-folder clean-up after each run

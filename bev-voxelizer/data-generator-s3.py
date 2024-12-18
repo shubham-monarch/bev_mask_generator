@@ -32,7 +32,13 @@ class LeafFolder:
         # ==================
         # 1. download left-segmented-labelled.ply
         # ==================
-        pcd_path = self.download_segmented_pcd(self.src_URI)
+        pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
+
+        self.logger.warning(f"=======================")
+        self.logger.warning(f"pcd_URI: {pcd_URI}")
+        self.logger.warning(f"=======================\n")
+
+        pcd_path = self.download_file(pcd_URI)
 
         # ==================
         # 2. generate mono / RGB segmentation masks
@@ -52,18 +58,17 @@ class LeafFolder:
         # ==================
         # 3. upload mono / RGB segmentation masks
         # ==================
-        self.upload_mask(seg_mask_mono, self.dest_URI + "seg-mask-mono.png")
-        self.upload_mask(seg_mask_rgb, self.dest_URI + "seg-mask-rgb.png")
+        self.upload_seg_mask(seg_mask_mono, self.dest_URI + "seg-mask-mono.png")
+        self.upload_seg_mask(seg_mask_rgb, self.dest_URI + "seg-mask-rgb.png")
         
-        
-        # 2. copy imgL
-        # 3. copy imgR
-        # 4. upload seg_mono
-        # 5. upload seg_rgb
-        # 6. upload ipm_fea
-        # 6. upload ipm_rgb
+        # ==================
+        # 4. process left / right images
+        # ==================
+        # download 1920x1080 
+        imgL_uri = self.src_URI + "left.jpg"
 
-
+        # resize  to 640 * 480
+        # upload resized image 
 
         pass
 
@@ -71,14 +76,10 @@ class LeafFolder:
     def rescale_img(self, img_uri: str):
         pass
 
-
     def copy_imgL(self, imgL_uri: str):
         pass
 
     def copy_imgR(self, imgR_uri: str):
-        pass
-
-    def upload_png(self, seg_mask: np.ndarray):
         pass
 
     def upload_ipm_fea(self, ipm_fea_uri: str):
@@ -98,24 +99,47 @@ class LeafFolder:
             self.logger.error(f"Failed to upload file {src_path} to {dest_URI}: {str(e)}")
             return False
 
-    def download_file(self, src_URI: str, dest_folder: str) -> str:
-        ''' Download a file from S3 to the dest_folder'''
+    def download_file(self, file_URI: str) -> str:
+        ''' Download file from S3 to tmp-files folder'''
         
         try:
-            bucket_name, key = src_URI.replace("s3://", "").split("/", 1)
+            bucket_name, key = file_URI.replace("s3://", "").split("/", 1)
             file_name = key.split("/")[-1]
             
-            os.makedirs(dest_folder, exist_ok=True)
-            tmp_path = os.path.join(dest_folder, file_name)
+            self.logger.info(f"=======================")
+            self.logger.info(f"bucket_name: {bucket_name}")
+            self.logger.info(f"key: {key}")
+            self.logger.info(f"file_name: {file_name}")
+            self.logger.info(f"=======================\n")
+
+            os.makedirs("tmp-files", exist_ok=True)
+            tmp_path = os.path.join("tmp-files", file_name)
             
             self.s3.download_file(bucket_name, key, tmp_path)
             return tmp_path
         except Exception as e:
-            self.logger.error(f"Failed to download file from {src_URI} to {dest_folder}: {str(e)}")
+            self.logger.error(f"Failed to download file from {file_URI}: {str(e)}")
             raise
     
     
-    def upload_mask(self, mask: np.ndarray, mask_uri: str) -> bool:
+    # def download_file(self, src_URI: str, dest_folder: str) -> str:
+    #     ''' Download a file from S3 to the dest_folder'''
+        
+    #     try:
+    #         bucket_name, key = src_URI.replace("s3://", "").split("/", 1)
+    #         file_name = key.split("/")[-1]
+            
+    #         os.makedirs(dest_folder, exist_ok=True)
+    #         tmp_path = os.path.join(dest_folder, file_name)
+            
+    #         self.s3.download_file(bucket_name, key, tmp_path)
+    #         return tmp_path
+    #     except Exception as e:
+    #         self.logger.error(f"Failed to download file from {src_URI} to {dest_folder}: {str(e)}")
+    #         raise
+    
+    
+    def upload_seg_mask(self, mask: np.ndarray, mask_uri: str) -> bool:
         """Save mask as PNG and upload to S3"""
         
         os.makedirs("tmp-masks", exist_ok=True)
@@ -132,13 +156,13 @@ class LeafFolder:
         return success
 
 
-    def download_segmented_pcd(self, folder_URI: str) -> str:
-        self.logger.info(f"=======================")
-        self.logger.info(f"Downloading left-segmented-labelled.ply!")
-        self.logger.info(f"=======================\n")
+    # def download_segmented_pcd(self, folder_URI: str) -> str:
+    #     self.logger.info(f"=======================")
+    #     self.logger.info(f"Downloading left-segmented-labelled.ply!")
+    #     self.logger.info(f"=======================\n")
         
-        segmented_pcd_uri = folder_URI + f"left-segmented-labelled.ply" 
-        return self.download_file(segmented_pcd_uri, "tmp-pcd")
+    #     segmented_pcd_uri = folder_URI + f"left-segmented-labelled.ply" 
+    #     return self.download_file(segmented_pcd_uri, "tmp-pcd")
                 
 
         
@@ -148,70 +172,76 @@ class LeafFolder:
     
 
 class DataGeneratorS3:
-    def __init__(self, src_uris: List[str] = None, dest_folder: str = None, index_json: str = None):    
+    def __init__(self, src_URIs: List[str] = None, dest_folder: str = None, index_json: str = None):    
         self.logger = get_logger("DataGeneratorS3")
-     
+        self.src_URIs = src_URIs
+
+        
     def get_target_folder_uri(self, src_uri: str, dest_folder:str = "bev-dataset"):
         ''' Make leaf-folder path relative to the bev-dataset folder '''
         return src_uri.replace("occ-dataset", dest_folder, 1)
         
    
-    def get_leaf_folders(self, s3_uri: str) -> List[str]:
-        """Get all leaf folders URI inside the given S3 URI"""
+    def get_leaf_folders(self) -> List[str]:
+        """Get all leaf folders URI inside the given S3 URIs"""
         
-        # Parse S3 URI to get bucket and prefix
-        s3_parts = s3_uri.replace("s3://", "").split("/", 1)
-        bucket_name = s3_parts[0]
-        prefix = s3_parts[1] if len(s3_parts) > 1 else ""
+        all_leaf_uris = []
         
-        # Initialize S3 client
-        s3 = boto3.client('s3')
-        
-        # Get all objects with the given prefix
-        paginator = s3.get_paginator('list_objects_v2')
-        pages = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
-        
-        # Keep track of all folders and their parent folders
-        all_folders = set()
-        parent_folders = set()
-        
-        # Process all objects
-        for page in pages:
-            if 'Contents' not in page:
-                continue
-                
-            for obj in page['Contents']:
-                # Get the full path
-                path = obj['Key']
-                
-                # Skip the prefix itself
-                if path == prefix:
+        for s3_uri in self.src_URIs:
+            # Parse S3 URI to get bucket and prefix
+            s3_parts = s3_uri.replace("s3://", "").split("/", 1)
+            bucket_name = s3_parts[0]
+            prefix = s3_parts[1] if len(s3_parts) > 1 else ""
+            
+            # Initialize S3 client
+            s3 = boto3.client('s3')
+            
+            # Get all objects with the given prefix
+            paginator = s3.get_paginator('list_objects_v2')
+            pages = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+            
+            # Keep track of all folders and their parent folders
+            all_folders = set()
+            parent_folders = set()
+            
+            # Process all objects
+            for page in pages:
+                if 'Contents' not in page:
                     continue
                     
-                # Get all folder paths in this object's path
-                parts = path.split('/')
-                for i in range(len(parts)-1):
-                    folder = '/'.join(parts[:i+1])
-                    if folder:
-                        all_folders.add(folder)
+                for obj in page['Contents']:
+                    # Get the full path
+                    path = obj['Key']
+                    
+                    # Skip the prefix itself
+                    if path == prefix:
+                        continue
                         
-                        # If this isn't the immediate parent, it's a parent folder
-                        if i < len(parts)-2:
-                            parent_folders.add(folder)
+                    # Get all folder paths in this object's path
+                    parts = path.split('/')
+                    for i in range(len(parts)-1):
+                        folder = '/'.join(parts[:i+1])
+                        if folder:
+                            all_folders.add(folder)
+                            
+                            # If this isn't the immediate parent, it's a parent folder
+                            if i < len(parts)-2:
+                                parent_folders.add(folder)
+            
+            # Leaf folders are those that aren't parents of other folders
+            leaf_folders = all_folders - parent_folders
+            
+            # Convert back to S3 URIs and add to list
+            leaf_folder_uris = [f"s3://{bucket_name}/{folder}" for folder in sorted(leaf_folders)]
+            all_leaf_uris.extend(leaf_folder_uris)
         
-        # Leaf folders are those that aren't parents of other folders
-        leaf_folders = all_folders - parent_folders
-        
-        # Convert back to S3 URIs
-        leaf_folder_uris = [f"s3://{bucket_name}/{folder}" for folder in sorted(leaf_folders)]
-        
-        return leaf_folder_uris
+        return all_leaf_uris
 
 
     def generate_bev_dataset(self, src_uri: str, dest_folder: str = "bev-dataset"):
         ''' Generate a BEV dataset from the given S3 URI '''
         
-        leaf_URIs = self.get_leaf_folders(src_uri)
+        leaf_URIs = self.get_leaf_folders()
         random.shuffle(leaf_URIs)
         
         for idx, leaf_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc="Processing leaf URIs"):    
@@ -221,33 +251,46 @@ class DataGeneratorS3:
 
 
 if __name__ == "__main__":
-    # uri_list = [
-    #     "s3://occupancy-dataset/occ-dataset/vineyards/gallo/",
-    # ]
+    URIs = [
+        "s3://occupancy-dataset/occ-dataset/vineyards/gallo/",
+        "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
+    ]
 
     logger = get_logger("__main__")
     
-    data_generator_s3 = DataGeneratorS3()
+    data_generator_s3 = DataGeneratorS3(src_URIs=URIs)
+    leaf_URIs = data_generator_s3.get_leaf_folders()
+
+    leaf_URI_src = random.choice(leaf_URIs)
+    leaf_URI_dest = data_generator_s3.get_target_folder_uri(leaf_URI_src)
+
+    logger.warning(f"=======================")
+    logger.warning(f"leaf_URI_src: {leaf_URI_src}")
+    logger.warning(f"leaf_URI_dest: {leaf_URI_dest}")
+    logger.warning(f"=======================\n")
+
     # src_URI = "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
     
-    leaf_URI_src = \
-        "s3://occupancy-dataset/" \
-        "occ-dataset/" \
-        "vineyards/gallo/" \
-        "2024_06_07_utc/svo_files/front_2024-06-04-10-24-57.svo/1398_to_1540/frame-1400/"
+    # leaf_URI_src = \
+    #     "s3://occupancy-dataset/" \
+    #     "occ-dataset/" \
+    #     "vineyards/gallo/" \
+    #     "2024_06_07_utc/svo_files/front_2024-06-04-10-24-57.svo/1398_to_1540/frame-1400/"
 
-    leaf_URI_dest = \
-        "s3://occupancy-dataset/" \
-        "bev-dataset/" \
-        "vineyards/gallo/" \
-        "2024_06_07_utc/svo_files/front_2024-06-04-10-24-57.svo/1398_to_1540/frame-1400/"
+    # leaf_URI_dest = \
+    #     "s3://occupancy-dataset/" \
+    #     "bev-dataset/" \
+    #     "vineyards/gallo/" \
+    #     "2024_06_07_utc/svo_files/front_2024-06-04-10-24-57.svo/1398_to_1540/frame-1400/"
     
-    # data_generator_s3.generate_bev_dataset(src_URI)
+    # src_URI = leaf_URI
+
+    # data_generator_s3.generate_bev_dataset(leaf_URI_src)
     
-    logger.info(f"=======================")
-    logger.info(f"leaf_URI_src: {leaf_URI_src}")
-    logger.info(f"leaf_URI_dest: {leaf_URI_dest}")
-    logger.info(f"=======================\n")
+    # logger.warning(f"=======================")
+    # logger.warning(f"leaf_URI_src: {leaf_URI_src}")
+    # logger.warning(f"leaf_URI_dest: {leaf_URI_dest}")
+    # logger.warning(f"=======================\n")
 
     leafFolder = LeafFolder(leaf_URI_src, leaf_URI_dest)
     leafFolder.process_folder()
