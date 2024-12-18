@@ -9,128 +9,92 @@ from tqdm import tqdm
 import open3d as o3d
 import numpy as np
 import cv2
-
+import json
 from bev_generator import BEVGenerator
 
+
+class JSONIndex:
+    def __init__(self, json_path: str = None):
+        
+        assert json_path is not None, "json_path is required!"
+        
+        self.index_path = json_path
+        self.index = self.load_index(json_path)
+        self.keys = ['seg-mask-mono', 'seg-mask-rgb', 'left-img', 'right-img']
+
+    def load_index(self, json_path: str) -> dict:
+        ''' Load index.json file from disk '''
+
+        if json_path and os.path.exists(json_path):
+            with open(json_path, 'r') as f:
+                self.index = json.load(f)
+        else:
+            self.index = {}
+
+        return self.index
+    
+    def add_file(self, file_uri: str):
+        ''' Add a new file to the index '''
+        
+        if file_uri not in self.index:
+            self.index[file_uri] = {}
+        
+        # set all keys to false
+        for key in self.keys:
+            self.index[file_uri][key] = False
+
+
+    def update_file(self, file_uri: str, key: str):
+        ''' Update an existing file in the index '''
+        
+        assert key in self.keys, f"Key {key} not found in index"
+        assert file_uri in self.index, f"File {file_uri} not found in index"
+
+        self.index[file_uri][key] = True
+        
+
+    def save_index(self):
+        '''Save index as json to disk'''
+        
+        with open(self.index_path, 'w') as f:
+            json.dump(self.index, f, indent=4)
+
+    def check_index(self, file_uri: str, key: str) -> bool:
+        ''' Check if the index has the given file and key '''
+        
+        if file_uri not in self.index:
+            return False
+        
+        if key not in self.index[file_uri]:
+            return False
+        
+        return self.index[file_uri][key]
+    
+
 class LeafFolder:
-    def __init__(self, src_URI: str, dest_URI: str):
+    def __init__(self, src_URI: str, dest_URI: str, index_json: str = None):
         '''
         :param src_URI: occ-dataset S3 URI
         :param dest_URI: bev-dataset S3 URI
+        :param index_json: index.json file path
         '''
+        assert index_json is not None, "index_json is required!"
+
         self.logger = get_logger("LeafFolder")
+        
         self.src_URI = src_URI
         self.dest_URI = dest_URI
-        self.s3 = boto3.client('s3')    
-        self.tmp_folder = "tmp-files"
         
         self.logger.warning(f"=======================")
         self.logger.warning(f"src_URI: {self.src_URI}")
         self.logger.warning(f"dest_URI: {self.dest_URI}")
         self.logger.warning(f"=======================\n")
 
+        self.s3 = boto3.client('s3')    
+        self.tmp_folder = "tmp-files"
+        self.index = JSONIndex(index_json)
         self.bev_generator = BEVGenerator()
-    
-    def process_folder(self):
         
-        # ==================
-        # 1. download left-segmented-labelled.ply
-        # ==================
-
-        self.logger.info(f"=======================")
-        self.logger.info(f"[STEP #1]: downloading left-segmented-labelled.ply...")
-        self.logger.info(f"=======================\n")
-
-        pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
-
-        # self.logger.info(f"=======================")
-        # self.logger.info(f"pcd_URI: {pcd_URI}")
-        # self.logger.info(f"=======================\n")
-
-        pcd_path = self.download_file(pcd_URI)
-
-        # ==================
-        # 2. generate mono / RGB segmentation masks
-        # ==================
-
-        self.logger.info(f"=======================")
-        self.logger.info(f"[STEP #2]: generating mono / RGB segmentation masks...")
-        self.logger.info(f"=======================\n")
-
-        pcd = o3d.t.io.read_point_cloud(pcd_path)
-        
-        # mask dimensions
-        nx, nz = 256, 256
-
-        # z is depth, x is horizontal
-        crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5}        
-        
-        seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
-                                                                         nx=256,nz=256,
-                                                                         bb=crop_bb)
-        
-        # ==================
-        # 3. upload mono / RGB segmentation masks
-        # ==================
-        
-        self.logger.info(f"=======================")
-        self.logger.info(f"[STEP #3]: uploading mono / RGB segmentation masks...")
-        self.logger.info(f"=======================\n")
-
-        self.upload_seg_mask(seg_mask_mono, os.path.join(self.dest_URI, "seg-mask-mono.png"))
-        self.upload_seg_mask(seg_mask_rgb, os.path.join(self.dest_URI, "seg-mask-rgb.png"))
-        
-        # ==================
-        # 4. process left / right images
-        # ==================
-        
-        self.logger.info(f"=======================")
-        self.logger.info(f"[STEP #4]: resizing + uploading left / right image...")
-        self.logger.info(f"=======================\n")
-
-        # download 1920x1080 
-        imgL_uri = os.path.join(self.src_URI, "left.jpg")
-        imgL_path = self.download_file(imgL_uri)
-        
-        imgR_uri = os.path.join(self.src_URI, "right.jpg")
-        imgR_path = self.download_file(imgR_uri)
-        
-        # resize to 640x480
-        imgL = cv2.imread(imgL_path)
-        imgR = cv2.imread(imgR_path)
-        
-        imgL_resized = cv2.resize(imgL, (640, 480))
-        imgR_resized = cv2.resize(imgR, (640, 480))
-        
-        # save to tmp-folder
-        imgL_path = os.path.join(self.tmp_folder, "left-resized.jpg")
-        imgR_path = os.path.join(self.tmp_folder, "right-resized.jpg")
-        
-        cv2.imwrite(imgL_path, imgL_resized)
-        cv2.imwrite(imgR_path, imgR_resized)
-        
-        # upload resized image 
-        self.upload_file(imgL_path, os.path.join(self.dest_URI, "left.jpg"))
-        self.upload_file(imgR_path, os.path.join(self.dest_URI, "right.jpg"))
-
-
-        
-
-        
-    def rescale_img(self, img_uri: str):
-        pass
-
-    def copy_imgL(self, imgL_uri: str):
-        pass
-
-    def copy_imgR(self, imgR_uri: str):
-        pass
-
-    def upload_ipm_fea(self, ipm_fea_uri: str):
-        pass
-
-    def upload_ipm_rgb(self, ipm_seg_uri: str):
-        pass
 
     def upload_file(self, src_path: str, dest_URI: str) -> bool:
         ''' Upload a file from src_path to dest_URI'''      
@@ -181,15 +145,111 @@ class LeafFolder:
         
         return success
 
-    def generate_bev(self, imgL_uri: str, imgR_uri: str):
-        pass
-    
+    def process_folder(self):
+        ''' Process a folder and generate BEV dataset '''
+        
+        self.index.add_file(self.src_URI)
+        
+        # ==================
+        # 1. download left-segmented-labelled.ply
+        # ==================
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #1]: downloading left-segmented-labelled.ply...")
+        self.logger.info(f"=======================\n")
+
+        pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
+
+        # self.logger.info(f"=======================")
+        # self.logger.info(f"pcd_URI: {pcd_URI}")
+        # self.logger.info(f"=======================\n")
+
+        pcd_path = self.download_file(pcd_URI)
+
+        # ==================
+        # 2. generate mono / RGB segmentation masks
+        # ==================
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #2]: generating mono / RGB segmentation masks...")
+        self.logger.info(f"=======================\n")
+
+        pcd = o3d.t.io.read_point_cloud(pcd_path)
+        
+        # mask dimensions
+        nx, nz = 256, 256
+
+        # z is depth, x is horizontal
+        crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5}        
+        
+        seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
+                                                                         nx=256,nz=256,
+                                                                         bb=crop_bb)
+        
+        # ==================
+        # 3. upload mono / RGB segmentation masks
+        # ==================
+        
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #3]: uploading mono / RGB segmentation masks...")
+        self.logger.info(f"=======================\n")
+
+        self.upload_seg_mask(seg_mask_mono, os.path.join(self.dest_URI, "seg-mask-mono.png"))
+        self.upload_seg_mask(seg_mask_rgb, os.path.join(self.dest_URI, "seg-mask-rgb.png"))
+        
+        # update index
+        self.index.update_file(self.src_URI, 'seg-mask-mono')
+        self.index.update_file(self.src_URI, 'seg-mask-rgb')
+
+        # ==================
+        # 4. process left / right images
+        # ==================
+        
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #4]: resizing + uploading left / right image...")
+        self.logger.info(f"=======================\n")
+
+        # download 1920x1080 
+        imgL_uri = os.path.join(self.src_URI, "left.jpg")
+        imgL_path = self.download_file(imgL_uri)
+        
+        imgR_uri = os.path.join(self.src_URI, "right.jpg")
+        imgR_path = self.download_file(imgR_uri)
+        
+        # resize to 640x480
+        imgL = cv2.imread(imgL_path)
+        imgR = cv2.imread(imgR_path)
+        
+        imgL_resized = cv2.resize(imgL, (640, 480))
+        imgR_resized = cv2.resize(imgR, (640, 480))
+        
+        # save to tmp-folder
+        imgL_path = os.path.join(self.tmp_folder, "left-resized.jpg")
+        imgR_path = os.path.join(self.tmp_folder, "right-resized.jpg")
+        
+        cv2.imwrite(imgL_path, imgL_resized)
+        cv2.imwrite(imgR_path, imgR_resized)
+        
+        # upload resized image 
+        self.upload_file(imgL_path, os.path.join(self.dest_URI, "left.jpg"))
+        self.upload_file(imgR_path, os.path.join(self.dest_URI, "right.jpg"))
+
+        # update index
+        self.index.update_file(self.src_URI, 'left-img')
+        self.index.update_file(self.src_URI, 'right-img')
+
+        # save index
+        self.index.save_index()
+
 
 class DataGeneratorS3:
     def __init__(self, src_URIs: List[str] = None, dest_folder: str = None, index_json: str = None):    
+        
+        assert index_json is not None, "index_json is required!"
+
         self.logger = get_logger("DataGeneratorS3")
         self.src_URIs = src_URIs
-
+        self.index_json = index_json
         
     def generate_target_URI(self, src_uri: str, dest_folder:str = None):
         ''' Make leaf-folder path relative to the bev-dataset folder '''
@@ -268,7 +328,7 @@ class DataGeneratorS3:
         
         for idx, src_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc="Processing leaf URIs"):    
             target_URI = self.generate_target_URI(src_URI, dest_folder)
-            leaf_folder = LeafFolder(src_URI, target_URI)
+            leaf_folder = LeafFolder(src_URI, target_URI, self.index_json)
             leaf_folder.process_folder()
 
 
@@ -280,41 +340,7 @@ if __name__ == "__main__":
 
     logger = get_logger("__main__")
     
-    data_generator_s3 = DataGeneratorS3(src_URIs=URIs)
+    json_path = "index.json"
+    data_generator_s3 = DataGeneratorS3(src_URIs=URIs, index_json=json_path)
     data_generator_s3.generate_bev_dataset()
     
-    # leaf_URIs = data_generator_s3.get_leaf_folders()
-
-    # leaf_URI_src = random.choice(leaf_URIs)
-    # leaf_URI_dest = data_generator_s3.get_target_folder_uri(leaf_URI_src)
-
-    # logger.info(f"=======================")
-    # logger.info(f"leaf_URI_src: {leaf_URI_src}")
-    # logger.info(f"leaf_URI_dest: {leaf_URI_dest}")
-    # logger.info(f"=======================\n")
-
-    # src_URI = "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
-    
-    # leaf_URI_src = \
-    #     "s3://occupancy-dataset/" \
-    #     "occ-dataset/" \
-    #     "vineyards/gallo/" \
-    #     "2024_06_07_utc/svo_files/front_2024-06-04-10-24-57.svo/1398_to_1540/frame-1400/"
-
-    # leaf_URI_dest = \
-    #     "s3://occupancy-dataset/" \
-    #     "bev-dataset/" \
-    #     "vineyards/gallo/" \
-    #     "2024_06_07_utc/svo_files/front_2024-06-04-10-24-57.svo/1398_to_1540/frame-1400/"
-    
-    # src_URI = leaf_URI
-
-    # data_generator_s3.generate_bev_dataset(leaf_URI_src)
-    
-    # logger.warning(f"=======================")
-    # logger.warning(f"leaf_URI_src: {leaf_URI_src}")
-    # logger.warning(f"leaf_URI_dest: {leaf_URI_dest}")
-    # logger.warning(f"=======================\n")
-
-    # leafFolder = LeafFolder(leaf_URI_src, leaf_URI_dest)
-    # leafFolder.process_folder()

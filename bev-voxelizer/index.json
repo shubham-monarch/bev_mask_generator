@@ -1,0 +1,14 @@
+{
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-11-23-21.svo/224_to_366/frame-356": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-48-13.svo/1934_to_2076/frame-2026": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    }
+}

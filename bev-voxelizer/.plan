@@ -89,6 +89,7 @@ aws based bev-generator
 - ability to resume 
 - data field agnostic resumption [i.e. left / right / mono / seg-masks-mono / seg-masks-rgb/ occlusion-mask]
 - upload index to s3
+- helper function to count number of files in s3 bev-dataset
 
 
 ======================
@@ -97,7 +98,7 @@ implement leafFolder class
 - close s3 client when leafFolder goes out of scope
 - add leafFolder destructor
 - better name for leafFolder
-- upload  scaled images
++ upload  scaled images
 - add exception handling
 - add error handling in process_folder
 - tmp-folder clean-up after each run
