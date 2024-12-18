@@ -21,9 +21,8 @@ class LeafFolder:
         self.logger = get_logger("LeafFolder")
         self.src_URI = src_URI
         self.dest_URI = dest_URI
-        self.s3 = boto3.client('s3')
-
-        
+        self.s3 = boto3.client('s3')    
+        self.tmp_folder = "tmp-files"
         
         self.bev_generator = BEVGenerator()
     
@@ -32,17 +31,27 @@ class LeafFolder:
         # ==================
         # 1. download left-segmented-labelled.ply
         # ==================
-        pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
 
         self.logger.warning(f"=======================")
-        self.logger.warning(f"pcd_URI: {pcd_URI}")
+        self.logger.warning(f"[STEP #1]: downloading left-segmented-labelled.ply...")
         self.logger.warning(f"=======================\n")
+
+        pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
+
+        # self.logger.info(f"=======================")
+        # self.logger.info(f"pcd_URI: {pcd_URI}")
+        # self.logger.info(f"=======================\n")
 
         pcd_path = self.download_file(pcd_URI)
 
         # ==================
         # 2. generate mono / RGB segmentation masks
         # ==================
+
+        self.logger.warning(f"=======================")
+        self.logger.warning(f"[STEP #2]: generating mono / RGB segmentation masks...")
+        self.logger.warning(f"=======================\n")
+
         pcd = o3d.t.io.read_point_cloud(pcd_path)
         
         # mask dimensions
@@ -58,17 +67,45 @@ class LeafFolder:
         # ==================
         # 3. upload mono / RGB segmentation masks
         # ==================
-        self.upload_seg_mask(seg_mask_mono, self.dest_URI + "seg-mask-mono.png")
-        self.upload_seg_mask(seg_mask_rgb, self.dest_URI + "seg-mask-rgb.png")
+        
+        self.logger.warning(f"=======================")
+        self.logger.warning(f"[STEP #3]: uploading mono / RGB segmentation masks...")
+        self.logger.warning(f"=======================\n")
+
+        self.upload_seg_mask(seg_mask_mono, os.path.join(self.dest_URI, "seg-mask-mono.png"))
+        self.upload_seg_mask(seg_mask_rgb, os.path.join(self.dest_URI, "seg-mask-rgb.png"))
         
         # ==================
         # 4. process left / right images
         # ==================
-        # download 1920x1080 
-        imgL_uri = self.src_URI + "left.jpg"
+        
+        self.logger.warning(f"=======================")
+        self.logger.warning(f"[STEP #4]: resizing + uploading left / right image...")
+        self.logger.warning(f"=======================\n")
 
-        # resize  to 640 * 480
+        # download 1920x1080 
+        imgL_uri = os.path.join(self.src_URI, "left.jpg")
+        imgL_path = self.download_file(imgL_uri)
+        
+        imgR_uri = os.path.join(self.src_URI, "right.jpg")
+        imgR_path = self.download_file(imgR_uri)
+        
+        # resize to 640x480
+        imgL = cv2.imread(imgL_path)
+        imgL_resized = cv2.resize(imgL, (640, 480))
+        imgL_path = os.path.join(self.tmp_folder, "left-resized.jpg")
+        cv2.imwrite(imgL_path, imgL_resized)
+
+        imgR = cv2.imread(imgR_path)
+        imgR_resized = cv2.resize(imgR, (640, 480))
+        imgR_path = os.path.join(self.tmp_folder, "right-resized.jpg")
+        cv2.imwrite(imgR_path, imgR_resized)
+        
         # upload resized image 
+        self.upload_file(imgL_path, os.path.join(self.dest_URI, "left.jpg"))
+        self.upload_file(imgR_path, os.path.join(self.dest_URI, "right.jpg"))
+        
+
 
         pass
 
@@ -106,11 +143,11 @@ class LeafFolder:
             bucket_name, key = file_URI.replace("s3://", "").split("/", 1)
             file_name = key.split("/")[-1]
             
-            self.logger.info(f"=======================")
-            self.logger.info(f"bucket_name: {bucket_name}")
-            self.logger.info(f"key: {key}")
-            self.logger.info(f"file_name: {file_name}")
-            self.logger.info(f"=======================\n")
+            # self.logger.info(f"=======================")
+            # self.logger.info(f"bucket_name: {bucket_name}")
+            # self.logger.info(f"key: {key}")
+            # self.logger.info(f"file_name: {file_name}")
+            # self.logger.info(f"=======================\n")
 
             os.makedirs("tmp-files", exist_ok=True)
             tmp_path = os.path.join("tmp-files", file_name)
@@ -119,25 +156,7 @@ class LeafFolder:
             return tmp_path
         except Exception as e:
             self.logger.error(f"Failed to download file from {file_URI}: {str(e)}")
-            raise
-    
-    
-    # def download_file(self, src_URI: str, dest_folder: str) -> str:
-    #     ''' Download a file from S3 to the dest_folder'''
-        
-    #     try:
-    #         bucket_name, key = src_URI.replace("s3://", "").split("/", 1)
-    #         file_name = key.split("/")[-1]
-            
-    #         os.makedirs(dest_folder, exist_ok=True)
-    #         tmp_path = os.path.join(dest_folder, file_name)
-            
-    #         self.s3.download_file(bucket_name, key, tmp_path)
-    #         return tmp_path
-    #     except Exception as e:
-    #         self.logger.error(f"Failed to download file from {src_URI} to {dest_folder}: {str(e)}")
-    #         raise
-    
+            raise    
     
     def upload_seg_mask(self, mask: np.ndarray, mask_uri: str) -> bool:
         """Save mask as PNG and upload to S3"""
@@ -154,18 +173,6 @@ class LeafFolder:
             os.remove(tmp_path)
         
         return success
-
-
-    # def download_segmented_pcd(self, folder_URI: str) -> str:
-    #     self.logger.info(f"=======================")
-    #     self.logger.info(f"Downloading left-segmented-labelled.ply!")
-    #     self.logger.info(f"=======================\n")
-        
-    #     segmented_pcd_uri = folder_URI + f"left-segmented-labelled.ply" 
-    #     return self.download_file(segmented_pcd_uri, "tmp-pcd")
-                
-
-        
 
     def generate_bev(self, imgL_uri: str, imgR_uri: str):
         pass
@@ -264,10 +271,10 @@ if __name__ == "__main__":
     leaf_URI_src = random.choice(leaf_URIs)
     leaf_URI_dest = data_generator_s3.get_target_folder_uri(leaf_URI_src)
 
-    logger.warning(f"=======================")
-    logger.warning(f"leaf_URI_src: {leaf_URI_src}")
-    logger.warning(f"leaf_URI_dest: {leaf_URI_dest}")
-    logger.warning(f"=======================\n")
+    logger.info(f"=======================")
+    logger.info(f"leaf_URI_src: {leaf_URI_src}")
+    logger.info(f"leaf_URI_dest: {leaf_URI_dest}")
+    logger.info(f"=======================\n")
 
     # src_URI = "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
     
@@ -292,5 +299,5 @@ if __name__ == "__main__":
     # logger.warning(f"leaf_URI_dest: {leaf_URI_dest}")
     # logger.warning(f"=======================\n")
 
-    leafFolder = LeafFolder(leaf_URI_src, leaf_URI_dest)
-    leafFolder.process_folder()
+    # leafFolder = LeafFolder(leaf_URI_src, leaf_URI_dest)
+    # leafFolder.process_folder()

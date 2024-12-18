@@ -101,3 +101,5 @@ leafFolder class
 - add exception handling
 - add error handling in process_folder
 - tmp-folder clean-up after each run
+- add native progress bar for upload / download file function
+- rename data-generator-s3.py to pipeline
