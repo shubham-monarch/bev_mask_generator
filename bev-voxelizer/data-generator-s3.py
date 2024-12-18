@@ -24,6 +24,11 @@ class LeafFolder:
         self.s3 = boto3.client('s3')    
         self.tmp_folder = "tmp-files"
         
+        self.logger.warning(f"=======================")
+        self.logger.warning(f"src_URI: {self.src_URI}")
+        self.logger.warning(f"dest_URI: {self.dest_URI}")
+        self.logger.warning(f"=======================\n")
+
         self.bev_generator = BEVGenerator()
     
     def process_folder(self):
@@ -32,9 +37,9 @@ class LeafFolder:
         # 1. download left-segmented-labelled.ply
         # ==================
 
-        self.logger.warning(f"=======================")
-        self.logger.warning(f"[STEP #1]: downloading left-segmented-labelled.ply...")
-        self.logger.warning(f"=======================\n")
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #1]: downloading left-segmented-labelled.ply...")
+        self.logger.info(f"=======================\n")
 
         pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
 
@@ -48,9 +53,9 @@ class LeafFolder:
         # 2. generate mono / RGB segmentation masks
         # ==================
 
-        self.logger.warning(f"=======================")
-        self.logger.warning(f"[STEP #2]: generating mono / RGB segmentation masks...")
-        self.logger.warning(f"=======================\n")
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #2]: generating mono / RGB segmentation masks...")
+        self.logger.info(f"=======================\n")
 
         pcd = o3d.t.io.read_point_cloud(pcd_path)
         
@@ -68,9 +73,9 @@ class LeafFolder:
         # 3. upload mono / RGB segmentation masks
         # ==================
         
-        self.logger.warning(f"=======================")
-        self.logger.warning(f"[STEP #3]: uploading mono / RGB segmentation masks...")
-        self.logger.warning(f"=======================\n")
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #3]: uploading mono / RGB segmentation masks...")
+        self.logger.info(f"=======================\n")
 
         self.upload_seg_mask(seg_mask_mono, os.path.join(self.dest_URI, "seg-mask-mono.png"))
         self.upload_seg_mask(seg_mask_rgb, os.path.join(self.dest_URI, "seg-mask-rgb.png"))
@@ -79,9 +84,9 @@ class LeafFolder:
         # 4. process left / right images
         # ==================
         
-        self.logger.warning(f"=======================")
-        self.logger.warning(f"[STEP #4]: resizing + uploading left / right image...")
-        self.logger.warning(f"=======================\n")
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #4]: resizing + uploading left / right image...")
+        self.logger.info(f"=======================\n")
 
         # download 1920x1080 
         imgL_uri = os.path.join(self.src_URI, "left.jpg")
@@ -92,22 +97,24 @@ class LeafFolder:
         
         # resize to 640x480
         imgL = cv2.imread(imgL_path)
-        imgL_resized = cv2.resize(imgL, (640, 480))
-        imgL_path = os.path.join(self.tmp_folder, "left-resized.jpg")
-        cv2.imwrite(imgL_path, imgL_resized)
-
         imgR = cv2.imread(imgR_path)
+        
+        imgL_resized = cv2.resize(imgL, (640, 480))
         imgR_resized = cv2.resize(imgR, (640, 480))
+        
+        # save to tmp-folder
+        imgL_path = os.path.join(self.tmp_folder, "left-resized.jpg")
         imgR_path = os.path.join(self.tmp_folder, "right-resized.jpg")
+        
+        cv2.imwrite(imgL_path, imgL_resized)
         cv2.imwrite(imgR_path, imgR_resized)
         
         # upload resized image 
         self.upload_file(imgL_path, os.path.join(self.dest_URI, "left.jpg"))
         self.upload_file(imgR_path, os.path.join(self.dest_URI, "right.jpg"))
+
+
         
-
-
-        pass
 
         
     def rescale_img(self, img_uri: str):
@@ -184,8 +191,10 @@ class DataGeneratorS3:
         self.src_URIs = src_URIs
 
         
-    def get_target_folder_uri(self, src_uri: str, dest_folder:str = "bev-dataset"):
+    def generate_target_URI(self, src_uri: str, dest_folder:str = None):
         ''' Make leaf-folder path relative to the bev-dataset folder '''
+        
+        assert dest_folder is not None, "dest_folder is required!"
         return src_uri.replace("occ-dataset", dest_folder, 1)
         
    
@@ -245,15 +254,21 @@ class DataGeneratorS3:
         return all_leaf_uris
 
 
-    def generate_bev_dataset(self, src_uri: str, dest_folder: str = "bev-dataset"):
+    def generate_bev_dataset(self, dest_folder: str = "bev-dataset"):
         ''' Generate a BEV dataset from the given S3 URI '''
         
+        assert dest_folder == "bev-dataset", "dest_folder must be 'bev-dataset'"
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"STARTING BEV-S3-DATASET GENERATION PIPELINE...")
+        self.logger.info(f"=======================\n")
+
         leaf_URIs = self.get_leaf_folders()
         random.shuffle(leaf_URIs)
         
-        for idx, leaf_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc="Processing leaf URIs"):    
-            target_folder = self.get_target_folder_uri(leaf_URI, dest_folder)
-            leaf_folder = LeafFolder(leaf_URI, target_folder)
+        for idx, src_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc="Processing leaf URIs"):    
+            target_URI = self.generate_target_URI(src_URI, dest_folder)
+            leaf_folder = LeafFolder(src_URI, target_URI)
             leaf_folder.process_folder()
 
 
@@ -266,15 +281,17 @@ if __name__ == "__main__":
     logger = get_logger("__main__")
     
     data_generator_s3 = DataGeneratorS3(src_URIs=URIs)
-    leaf_URIs = data_generator_s3.get_leaf_folders()
+    data_generator_s3.generate_bev_dataset()
+    
+    # leaf_URIs = data_generator_s3.get_leaf_folders()
 
-    leaf_URI_src = random.choice(leaf_URIs)
-    leaf_URI_dest = data_generator_s3.get_target_folder_uri(leaf_URI_src)
+    # leaf_URI_src = random.choice(leaf_URIs)
+    # leaf_URI_dest = data_generator_s3.get_target_folder_uri(leaf_URI_src)
 
-    logger.info(f"=======================")
-    logger.info(f"leaf_URI_src: {leaf_URI_src}")
-    logger.info(f"leaf_URI_dest: {leaf_URI_dest}")
-    logger.info(f"=======================\n")
+    # logger.info(f"=======================")
+    # logger.info(f"leaf_URI_src: {leaf_URI_src}")
+    # logger.info(f"leaf_URI_dest: {leaf_URI_dest}")
+    # logger.info(f"=======================\n")
 
     # src_URI = "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
     

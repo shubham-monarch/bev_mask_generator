@@ -92,7 +92,7 @@ aws based bev-generator
 
 
 ======================
-leafFolder class
+implement leafFolder class
 ======================
 - close s3 client when leafFolder goes out of scope
 - add leafFolder destructor
@@ -103,3 +103,11 @@ leafFolder class
 - tmp-folder clean-up after each run
 - add native progress bar for upload / download file function
 - rename data-generator-s3.py to pipeline
+- add uploded folder indexing
+
+
+======================
+indexing
+======================
+- file by file indexing
+- step by step indexing
