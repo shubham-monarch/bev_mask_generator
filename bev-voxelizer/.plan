@@ -101,14 +101,15 @@ implement leafFolder class
 + upload  scaled images
 - add exception handling
 - add error handling in process_folder
-- tmp-folder clean-up after each run
+* tmp-folder clean-up after each run
 - add native progress bar for upload / download file function
 - rename data-generator-s3.py to pipeline
-- add uploded folder indexing
++ add uploded folder indexing
 
 
 ======================
 indexing
 ======================
-- file by file indexing
-- step by step indexing
++ file by file indexing
++ step by step indexing
+- support for more keys
