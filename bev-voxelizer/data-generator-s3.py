@@ -357,18 +357,26 @@ class DataGeneratorS3:
 
 
 if __name__ == "__main__":
-    URIs = [
-        "s3://occupancy-dataset/occ-dataset/vineyards/gallo/",
-        "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
+    # PCD_URIs = [
+    #     "s3://occupancy-dataset/occ-dataset/vineyards/gallo/",
+    #     "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
+    # ]
+
+    BEV_URIs = [
+        "s3://occupancy-dataset/bev-dataset/vineyards/gallo/",
+        "s3://occupancy-dataset/bev-dataset/vineyards/RJM/"
     ]
+
 
     logger = get_logger("__main__")
     
     json_path = "index.json"
-    data_generator_s3 = DataGeneratorS3(src_URIs=URIs, index_json=json_path)
-    data_generator_s3.generate_bev_dataset()
+    data_generator_s3 = DataGeneratorS3(src_URIs=BEV_URIs, index_json=json_path)
+    # data_generator_s3.generate_bev_dataset()
     
-    # leaf = LeafFolder(src_URI="s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-26-19.svo/944_to_1086/frame-960",
-    #                   dest_URI="s3://occupancy-dataset/bev-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-26-19.svo/944_to_1086/frame-960",
-    #                   index_json="index.json")
-    # leaf.process_folder()
+    leaf_folder_cnt = len(data_generator_s3.get_leaf_folders())
+    
+    logger.info(f"=======================")
+    logger.info(f"Total leaf folders: {leaf_folder_cnt}")
+    logger.info(f"=======================\n")
+    

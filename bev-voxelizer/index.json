@@ -6550,5 +6550,317 @@
         "seg-mask-rgb": true,
         "left-img": true,
         "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-10-01-19.svo/350_to_492/frame-362": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-10-38-41.svo/148_to_290/frame-250": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-11-17-40.svo/2262_to_2404/frame-2264": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-51-19.svo/772_to_914/frame-854": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-29-57.svo/2316_to_2458/frame-2368": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-11-18-21.svo/954_to_1096/frame-1070": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-11-43-21.svo/1842_to_1984/frame-1924": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-10-20-37.svo/680_to_822/frame-702": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-43-13.svo/246_to_388/frame-268": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-24-54.svo/1282_to_1424/frame-1414": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-48-13.svo/918_to_1060/frame-960": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-10-11-19.svo/2650_to_2792/frame-2672": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-12-35-25.svo/2344_to_2486/frame-2366": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-12-17-05.svo/1504_to_1646/frame-1616": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-39-57.svo/1358_to_1500/frame-1460": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-44-57.svo/1128_to_1270/frame-1180": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-29-57.svo/1964_to_2106/frame-1996": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-41-19.svo/400_to_542/frame-422": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-12-27-05.svo/480_to_622/frame-502": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-51-19.svo/2214_to_2356/frame-2266": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-34-57.svo/506_to_648/frame-538": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-11-13-21.svo/1936_to_2078/frame-2008": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-10-33-41.svo/580_to_722/frame-692": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-55-19.svo/1130_to_1272/frame-1192": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-46-19.svo/1382_to_1524/frame-1454": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-12-40-25.svo/1052_to_1194/frame-1164": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-36-19.svo/2064_to_2206/frame-2176": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-11-17-40.svo/2694_to_2836/frame-2816": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-10-29-30.svo/552_to_694/frame-624": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-44-57.svo/296_to_438/frame-388": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-10-20-37.svo/392_to_534/frame-524": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-10-33-41.svo/2196_to_2338/frame-2328": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-48-13.svo/2284_to_2426/frame-2416": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-53-13.svo/1714_to_1856/frame-1716": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-10-33-41.svo/4_to_146/frame-24": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-36-19.svo/2208_to_2350/frame-2260": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-53-13.svo/1138_to_1280/frame-1160": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-24-54.svo/2664_to_2806/frame-2736": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-49-57.svo/148_to_290/frame-160": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-12-40-25.svo/2486_to_2628/frame-2608": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-31-19.svo/2262_to_2404/frame-2274": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-11-13-21.svo/1470_to_1612/frame-1542": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-51-19.svo/560_to_702/frame-662": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-36-19.svo/1920_to_2062/frame-2032": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-31-19.svo/2118_to_2260/frame-2160": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-34-57.svo/2402_to_2544/frame-2424": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-29-57.svo/1522_to_1664/frame-1644": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-10-11-19.svo/2650_to_2792/frame-2732": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-24-57.svo/2656_to_2798/frame-2778": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-36-19.svo/2680_to_2822/frame-2792": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-29-57.svo/1234_to_1376/frame-1326": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
+    },
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-11-43-21.svo/526_to_668/frame-558": {
+        "seg-mask-mono": true,
+        "seg-mask-rgb": true,
+        "left-img": true,
+        "right-img": true
     }
 }
