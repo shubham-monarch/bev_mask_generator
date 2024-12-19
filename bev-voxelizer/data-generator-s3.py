@@ -357,26 +357,26 @@ class DataGeneratorS3:
 
 
 if __name__ == "__main__":
-    # PCD_URIs = [
-    #     "s3://occupancy-dataset/occ-dataset/vineyards/gallo/",
-    #     "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
-    # ]
-
-    BEV_URIs = [
-        "s3://occupancy-dataset/bev-dataset/vineyards/gallo/",
-        "s3://occupancy-dataset/bev-dataset/vineyards/RJM/"
+    PCD_URIs = [
+        "s3://occupancy-dataset/occ-dataset/vineyards/gallo/",
+        "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
     ]
+
+    # BEV_URIs = [
+    #     "s3://occupancy-dataset/bev-dataset/vineyards/gallo/",
+    #     "s3://occupancy-dataset/bev-dataset/vineyards/RJM/"
+    # ]
 
 
     logger = get_logger("__main__")
     
     json_path = "index.json"
-    data_generator_s3 = DataGeneratorS3(src_URIs=BEV_URIs, index_json=json_path)
-    # data_generator_s3.generate_bev_dataset()
+    data_generator_s3 = DataGeneratorS3(src_URIs=PCD_URIs, index_json=json_path)
+    data_generator_s3.generate_bev_dataset()
     
-    leaf_folder_cnt = len(data_generator_s3.get_leaf_folders())
+    # leaf_folder_cnt = len(data_generator_s3.get_leaf_folders())
     
-    logger.info(f"=======================")
-    logger.info(f"Total leaf folders: {leaf_folder_cnt}")
-    logger.info(f"=======================\n")
+    # logger.info(f"=======================")
+    # logger.info(f"Total leaf folders: {leaf_folder_cnt}")
+    # logger.info(f"=======================\n")
     
