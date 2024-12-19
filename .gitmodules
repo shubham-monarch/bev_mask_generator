@@ -1,0 +1,4 @@
+[submodule "sbevnet"]
+	path = sbevnet
+	url = git@github.com:shubham-monarch/sbevnet.git
+	branch = dev
