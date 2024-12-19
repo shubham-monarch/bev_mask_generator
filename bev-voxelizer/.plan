@@ -116,25 +116,19 @@ indexing
 + step by step indexing
 + support for more keys
 
+
 ======================
 demo 
 ======================
-- overfitted masks
-- video 
-- bev s3 dataset has 1000 frames
+- dairy data pipeline integrated with help --> show samples --> left.jpg  / pcd-rgb / pcd-seg
+- video --> only 100 samples / improved loss function 
 - metric accuracy map 
+- overfitted masks
+- bev-s3-generator working
 - 1200 frames added
-- dairy data pipeline integrated with help 
-- need to add occlusion mask + ipm features 
+- need to add occlusion mask + ipm features + stereo-rectification 
 - evaluation infrastructure in progress
 
-
-======================
-evaluation infrastructure 
-======================
-- check sbevnet utils
-- EvalClass 
-- integrate eval cases
 
 ======================
 eval cases
@@ -153,5 +147,16 @@ generate additional data
 - ipm rgb
 - ipm fea
 
+
+======================
+evaluation infrastructure 
+======================
+- check sbevnet utils
+- EvalClass 
+- integrate eval cases
+- metrics ?
+- train / eval / test split
+- processing bev-aws to bev-model pipeline
+- utility to classify dataset into [object / pole / vineyard ] heavy
 
 - combine sbevnet with stereo-occ

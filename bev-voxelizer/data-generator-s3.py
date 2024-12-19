@@ -254,7 +254,7 @@ class LeafFolder:
 
         else:
             self.logger.error(f"=======================")
-            self.logger.error(f"Skipping uploading left / right image...")
+            self.logger.error(f"Skipping step 4...")
             self.logger.error(f"=======================\n")
 
         # =================
