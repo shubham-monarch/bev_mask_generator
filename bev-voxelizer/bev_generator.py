@@ -293,11 +293,7 @@ class BEVGenerator:
         self.logger.warning(f"=================================\n")
 
         # Verify mean_Y is close to zero after shifting
-        if not np.isclose(mean_Y, 0, atol=1e-6):
-            self.logger.error(f"=================================")
-            self.logger.error(f"Error: mean_Y ({mean_Y}) is not close to zero after shifting!")
-            self.logger.error(f"=================================\n")
-            exit(1)
+        assert np.isclose(mean_Y, 0, atol=1e-6), f"Error: mean_Y ({mean_Y}) is not close to zero after shifting!"
 
         # label-wise BEV generations
         bev_pointclouds = []

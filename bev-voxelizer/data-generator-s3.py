@@ -19,7 +19,7 @@ class JSONIndex:
         assert json_path is not None, "json_path is required!"
         
         self.index_path = json_path
-        self.index = self.load_index(json_path)
+        self.index = self.load_index(self.index_path)
         self.keys = ['seg-mask-mono', 'seg-mask-rgb', 'left-img', 'right-img']
 
     def load_index(self, json_path: str) -> dict:
@@ -254,7 +254,7 @@ class LeafFolder:
 
         else:
             self.logger.error(f"=======================")
-            self.logger.error(f"[STEP #4]: skipping uploading left / right image...")
+            self.logger.error(f"Skipping uploading left / right image...")
             self.logger.error(f"=======================\n")
 
         # =================

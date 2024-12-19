@@ -64,6 +64,10 @@
 - transpose effect
 - z-indices out-of-bounds error while bev_pcd -> bev_png 
 
+
+======================
+testing procedure
+======================
 - testing sequence
 - with camera extrinsics npy
 - with camera extrinsics npy with x / z correction
@@ -75,22 +79,19 @@
 - with z-bound error fix
 
 
-- add utility to push model-data to s3
++ add utility to push model-data to s3
 
 
 ======================
 aws based bev-generator
 ======================
-- start aws based data-generation pipeline
-- index to track processed files
-- ipm rgb 
-- occlusion mask
-- add index.json
-- ability to resume 
++ start aws based data-generation pipeline
++ index to track processed files
++ add index.json
++ ability to resume 
 - data field agnostic resumption [i.e. left / right / mono / seg-masks-mono / seg-masks-rgb/ occlusion-mask]
-- upload index to s3
-- helper function to count number of files in s3 bev-dataset
-
+- upload updated index to s3 in every run
+- [util] count number of files in s3 bev-dataset
 
 ======================
 implement leafFolder class
@@ -105,6 +106,7 @@ implement leafFolder class
 - add native progress bar for upload / download file function
 - rename data-generator-s3.py to pipeline
 + add uploded folder indexing
+- scope for multithreading
 
 
 ======================
@@ -112,4 +114,44 @@ indexing
 ======================
 + file by file indexing
 + step by step indexing
-- support for more keys
++ support for more keys
+
+======================
+demo 
+======================
+- overfitted masks
+- video 
+- bev s3 dataset has 1000 frames
+- metric accuracy map 
+- 1200 frames added
+- dairy data pipeline integrated with help 
+- need to add occlusion mask + ipm features 
+- evaluation infrastructure in progress
+
+
+======================
+evaluation infrastructure 
+======================
+- check sbevnet utils
+- EvalClass 
+- integrate eval cases
+
+======================
+eval cases
+======================
+- stereo-rectification
+- occlusion masks
+- ipm rgb 
+- ipm fea
+
+
+======================
+generate additional data 
+======================
+- read zed-baseline from svo
+- occlusion mask 
+- ipm rgb
+- ipm fea
+
+
+- combine sbevnet with stereo-occ
