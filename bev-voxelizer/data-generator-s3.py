@@ -274,13 +274,14 @@ class DataGeneratorS3:
         
         assert index_json is not None, "index_json is required!"
         assert crop_bb is not None, "crop_bb is required!"
-        assert dest_folder is not None, "dest_folder is required!"
+        assert dest_folder == "bev-dataset-2-to-7", "dest_folder must be 'bev-dataset-2-to-7'"
         
         self.logger = get_logger("DataGeneratorS3")
         self.src_URIs = src_URIs
         self.index_json = index_json
         self.crop_bb = crop_bb
-    
+        self.dest_folder = dest_folder
+
     def generate_target_URI(self, src_uri: str, dest_folder:str = None):
         ''' Make leaf-folder path relative to the bev-dataset folder '''
         
@@ -343,13 +344,11 @@ class DataGeneratorS3:
         
         return all_leaf_uris
 
-    def generate_bev_dataset(self, dest_folder: str = None, crop_bb: dict = None):
+    def generate_bev_dataset(self, dest_folder: str = None):
     # def generate_bev_dataset(self, dest_folder: str = "bev-dataset", crop_bb: dict = None):
         ''' Generate a BEV dataset from the given S3 URI '''
         
-        assert dest_folder == "bev-dataset-2-to-7", "dest_folder must be 'bev-dataset-2-to-7'"
-        assert crop_bb is not None, "crop_bb is required!"
-
+        
         self.logger.info(f"=======================")
         self.logger.info(f"STARTING BEV-S3-DATASET GENERATION PIPELINE...")
         self.logger.info(f"=======================\n")
@@ -358,8 +357,8 @@ class DataGeneratorS3:
         random.shuffle(leaf_URIs)
         
         for idx, src_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc="Processing leaf URIs"):    
-            target_URI = self.generate_target_URI(src_URI, dest_folder)
-            leaf_folder = LeafFolder(src_URI, target_URI, self.index_json, crop_bb)
+            target_URI = self.generate_target_URI(src_URI, self.dest_folder)
+            leaf_folder = LeafFolder(src_URI, target_URI, self.index_json, self.crop_bb)
             try:
                 leaf_folder.process_folder()
             except Exception as e:
@@ -378,11 +377,14 @@ if __name__ == "__main__":
     # ]
 
 
-    logger = get_logger("__main__")
+    logger = get_logger("data-generator-s3")
     
+    # x is horizontal, z is depth
     crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 2.0, 'z_max': 7.0}
-    json_path = "index.json"
+    
+    json_path = "index-s3/bev-dataset-2-to-7.json"
     data_generator_s3 = DataGeneratorS3(src_URIs=PCD_URIs, 
+                                        dest_folder="bev-dataset-2-to-7",
                                         index_json=json_path, 
                                         crop_bb=crop_bb)
     
