@@ -72,18 +72,21 @@ class JSONIndex:
     
 
 class LeafFolder:
-    def __init__(self, src_URI: str, dest_URI: str, index_json: str = None):
+    def __init__(self, src_URI: str, dest_URI: str, index_json: str = None, crop_bb: dict = None):
         '''
         :param src_URI: occ-dataset S3 URI
         :param dest_URI: bev-dataset S3 URI
         :param index_json: index.json file path
         '''
         assert index_json is not None, "index_json is required!"
+        assert crop_bb is not None, "crop_bb is required!"
 
         self.logger = get_logger("LeafFolder")
         
         self.src_URI = src_URI
         self.dest_URI = dest_URI
+
+        self.crop_bb = crop_bb
         
         self.logger.warning(f"=======================")
         self.logger.warning(f"src_URI: {self.src_URI}")
@@ -182,11 +185,11 @@ class LeafFolder:
             nx, nz = 256, 256
 
             # z is depth, x is horizontal
-            crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5}        
+            # crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5}        
             
             seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
                                                                             nx=256,nz=256,
-                                                                            bb=crop_bb)
+                                                                            bb=self.crop_bb)
         
             # ==================
             # 3. upload mono / RGB segmentation masks
@@ -264,14 +267,20 @@ class LeafFolder:
 
 
 class DataGeneratorS3:
-    def __init__(self, src_URIs: List[str] = None, dest_folder: str = None, index_json: str = None):    
+    def __init__(self, src_URIs: List[str] = None, 
+                 dest_folder: str = None, 
+                 index_json: str = None,
+                 crop_bb: dict = None):    
         
         assert index_json is not None, "index_json is required!"
-
+        assert crop_bb is not None, "crop_bb is required!"
+        assert dest_folder is not None, "dest_folder is required!"
+        
         self.logger = get_logger("DataGeneratorS3")
         self.src_URIs = src_URIs
         self.index_json = index_json
-        
+        self.crop_bb = crop_bb
+    
     def generate_target_URI(self, src_uri: str, dest_folder:str = None):
         ''' Make leaf-folder path relative to the bev-dataset folder '''
         
@@ -334,11 +343,12 @@ class DataGeneratorS3:
         
         return all_leaf_uris
 
-
-    def generate_bev_dataset(self, dest_folder: str = "bev-dataset"):
+    def generate_bev_dataset(self, dest_folder: str = None, crop_bb: dict = None):
+    # def generate_bev_dataset(self, dest_folder: str = "bev-dataset", crop_bb: dict = None):
         ''' Generate a BEV dataset from the given S3 URI '''
         
-        assert dest_folder == "bev-dataset", "dest_folder must be 'bev-dataset'"
+        assert dest_folder == "bev-dataset-2-to-7", "dest_folder must be 'bev-dataset-2-to-7'"
+        assert crop_bb is not None, "crop_bb is required!"
 
         self.logger.info(f"=======================")
         self.logger.info(f"STARTING BEV-S3-DATASET GENERATION PIPELINE...")
@@ -349,7 +359,7 @@ class DataGeneratorS3:
         
         for idx, src_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc="Processing leaf URIs"):    
             target_URI = self.generate_target_URI(src_URI, dest_folder)
-            leaf_folder = LeafFolder(src_URI, target_URI, self.index_json)
+            leaf_folder = LeafFolder(src_URI, target_URI, self.index_json, crop_bb)
             try:
                 leaf_folder.process_folder()
             except Exception as e:
@@ -370,8 +380,12 @@ if __name__ == "__main__":
 
     logger = get_logger("__main__")
     
+    crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 2.0, 'z_max': 7.0}
     json_path = "index.json"
-    data_generator_s3 = DataGeneratorS3(src_URIs=PCD_URIs, index_json=json_path)
+    data_generator_s3 = DataGeneratorS3(src_URIs=PCD_URIs, 
+                                        index_json=json_path, 
+                                        crop_bb=crop_bb)
+    
     data_generator_s3.generate_bev_dataset()
     
     # leaf_folder_cnt = len(data_generator_s3.get_leaf_folders())
