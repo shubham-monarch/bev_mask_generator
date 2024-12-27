@@ -89,21 +89,21 @@ aws based bev-generator
 + index to track processed files
 + add index.json
 + ability to resume 
-- data field agnostic resumption [i.e. left / right / mono / seg-masks-mono / seg-masks-rgb/ occlusion-mask]
++ data field agnostic resumption [i.e. left / right / mono / seg-masks-mono / seg-masks-rgb/ occlusion-mask]
 - upload updated index to s3 in every run
-- [util] count number of files in s3 bev-dataset
++ [util] count number of files in s3 bev-dataset
 
 ======================
 implement leafFolder class
 ======================
 - close s3 client when leafFolder goes out of scope
-- add leafFolder destructor
+* add leafFolder destructor
 - better name for leafFolder
 + upload  scaled images
-- add exception handling
-- add error handling in process_folder
++ add exception handling
++ add error handling in process_folder
 * tmp-folder clean-up after each run
-- add native progress bar for upload / download file function
+* add native progress bar for upload / download file function
 - rename data-generator-s3.py to pipeline
 + add uploded folder indexing
 - scope for multithreading
@@ -121,8 +121,10 @@ indexing
 demo 
 ======================
 - dairy data pipeline integrated with help --> show samples --> left.jpg  / pcd-rgb / pcd-seg
-- video --> only 100 samples / improved loss function 
-- metric accuracy map 
+- video --> only 100 samples  metric accuracy map 
+- per-pixel loss --> weighted cross entropy / focal loss  
+- class imbalance problem --> data augmentation 
+
 - overfitted masks
 - bev-s3-generator working
 - 1200 frames added
@@ -148,15 +150,5 @@ generate additional data
 - ipm fea
 
 
-======================
-evaluation infrastructure 
-======================
-- check sbevnet utils
-- EvalClass 
-- integrate eval cases
-- metrics ?
-- train / eval / test split
-- processing bev-aws to bev-model pipeline
-- utility to classify dataset into [object / pole / vineyard ] heavy
 
 + combine sbevnet with stereo-occ

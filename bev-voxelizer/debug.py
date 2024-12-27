@@ -45,6 +45,114 @@ def project_pcd_to_camera(pcd_input, camera_matrix, image_size, rvec=None, tvec=
     # cv2.destroyAllWindows()
     return img
 
+ def process_folder(src_URI):
+        
+        # ==================
+        # 1. download left-segmented-labelled.ply
+        # ==================
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #1]: downloading left-segmented-labelled.ply...")
+        self.logger.info(f"=======================\n")
+
+        pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
+
+        pcd_path = self.download_file(pcd_URI)
+
+        # ==================
+        # 2. generate mono / RGB segmentation masks
+        # ==================
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #2]: generating mono / RGB segmentation masks...")
+        self.logger.info(f"=======================\n")
+
+        pcd = o3d.t.io.read_point_cloud(pcd_path)
+        
+        # mask dimensions
+        nx, nz = 256, 256
+
+        # z is depth, x is horizontal
+        crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5}        
+        
+        seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
+                                                                        nx=256,nz=256,
+                                                                        bb=crop_bb)
+    
+        # ==================
+        # 3. upload mono / RGB segmentation masks
+        # ==================
+    
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #3]: uploading mono / RGB segmentation masks...")
+        self.logger.info(f"=======================\n")
+
+        self.upload_seg_mask(seg_mask_mono, os.path.join(self.dest_URI, "seg-mask-mono.png"))
+        self.upload_seg_mask(seg_mask_rgb, os.path.join(self.dest_URI, "seg-mask-rgb.png"))
+        
+        # update index
+        self.INDEX.update_file(self.src_URI, 'seg-mask-mono')
+        self.INDEX.update_file(self.src_URI, 'seg-mask-rgb')
+
+    else: 
+        self.logger.error(f"=======================")
+        self.logger.error(f"Skipping steps 1,2 and 3!")
+        self.logger.error(f"=======================\n")
+    
+    
+    # check index
+    found_left_img = self.INDEX.check_index(self.src_URI, 'left-img')
+    found_right_img = self.INDEX.check_index(self.src_URI, 'right-img')
+
+    if not found_left_img or not found_right_img:
+        
+        # ==================
+        # 4. process left / right images
+        # ==================
+    
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #4]: resizing + uploading left / right image...")
+        self.logger.info(f"=======================\n")
+
+        # download 1920x1080 
+        imgL_uri = os.path.join(self.src_URI, "left.jpg")
+        imgL_path = self.download_file(imgL_uri)
+        
+        imgR_uri = os.path.join(self.src_URI, "right.jpg")
+        imgR_path = self.download_file(imgR_uri)
+        
+        # resize to 640x480
+        imgL = cv2.imread(imgL_path)
+        imgR = cv2.imread(imgR_path)
+        
+        imgL_resized = cv2.resize(imgL, (640, 480))
+        imgR_resized = cv2.resize(imgR, (640, 480))
+        
+        # save to tmp-folder
+        imgL_path = os.path.join(self.tmp_folder, "left-resized.jpg")
+        imgR_path = os.path.join(self.tmp_folder, "right-resized.jpg")
+        
+        cv2.imwrite(imgL_path, imgL_resized)
+        cv2.imwrite(imgR_path, imgR_resized)
+        
+        # upload resized image 
+        self.upload_file(imgL_path, os.path.join(self.dest_URI, "left.jpg"))
+        self.upload_file(imgR_path, os.path.join(self.dest_URI, "right.jpg"))
+
+        # update index
+        self.INDEX.update_file(self.src_URI, 'left-img')
+        self.INDEX.update_file(self.src_URI, 'right-img')
+
+    else:
+        self.logger.error(f"=======================")
+        self.logger.error(f"Skipping step 4...")
+        self.logger.error(f"=======================\n")
+
+    # =================
+    # 5. save index
+    # =================
+    self.INDEX.save_index()
+
 
 if __name__ == "__main__":  
      
