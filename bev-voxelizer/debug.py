@@ -45,113 +45,6 @@ def project_pcd_to_camera(pcd_input, camera_matrix, image_size, rvec=None, tvec=
     # cv2.destroyAllWindows()
     return img
 
- def process_folder(src_URI):
-        
-        # ==================
-        # 1. download left-segmented-labelled.ply
-        # ==================
-
-        self.logger.info(f"=======================")
-        self.logger.info(f"[STEP #1]: downloading left-segmented-labelled.ply...")
-        self.logger.info(f"=======================\n")
-
-        pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
-
-        pcd_path = self.download_file(pcd_URI)
-
-        # ==================
-        # 2. generate mono / RGB segmentation masks
-        # ==================
-
-        self.logger.info(f"=======================")
-        self.logger.info(f"[STEP #2]: generating mono / RGB segmentation masks...")
-        self.logger.info(f"=======================\n")
-
-        pcd = o3d.t.io.read_point_cloud(pcd_path)
-        
-        # mask dimensions
-        nx, nz = 256, 256
-
-        # z is depth, x is horizontal
-        crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5}        
-        
-        seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
-                                                                        nx=256,nz=256,
-                                                                        bb=crop_bb)
-    
-        # ==================
-        # 3. upload mono / RGB segmentation masks
-        # ==================
-    
-        self.logger.info(f"=======================")
-        self.logger.info(f"[STEP #3]: uploading mono / RGB segmentation masks...")
-        self.logger.info(f"=======================\n")
-
-        self.upload_seg_mask(seg_mask_mono, os.path.join(self.dest_URI, "seg-mask-mono.png"))
-        self.upload_seg_mask(seg_mask_rgb, os.path.join(self.dest_URI, "seg-mask-rgb.png"))
-        
-        # update index
-        self.INDEX.update_file(self.src_URI, 'seg-mask-mono')
-        self.INDEX.update_file(self.src_URI, 'seg-mask-rgb')
-
-    else: 
-        self.logger.error(f"=======================")
-        self.logger.error(f"Skipping steps 1,2 and 3!")
-        self.logger.error(f"=======================\n")
-    
-    
-    # check index
-    found_left_img = self.INDEX.check_index(self.src_URI, 'left-img')
-    found_right_img = self.INDEX.check_index(self.src_URI, 'right-img')
-
-    if not found_left_img or not found_right_img:
-        
-        # ==================
-        # 4. process left / right images
-        # ==================
-    
-        self.logger.info(f"=======================")
-        self.logger.info(f"[STEP #4]: resizing + uploading left / right image...")
-        self.logger.info(f"=======================\n")
-
-        # download 1920x1080 
-        imgL_uri = os.path.join(self.src_URI, "left.jpg")
-        imgL_path = self.download_file(imgL_uri)
-        
-        imgR_uri = os.path.join(self.src_URI, "right.jpg")
-        imgR_path = self.download_file(imgR_uri)
-        
-        # resize to 640x480
-        imgL = cv2.imread(imgL_path)
-        imgR = cv2.imread(imgR_path)
-        
-        imgL_resized = cv2.resize(imgL, (640, 480))
-        imgR_resized = cv2.resize(imgR, (640, 480))
-        
-        # save to tmp-folder
-        imgL_path = os.path.join(self.tmp_folder, "left-resized.jpg")
-        imgR_path = os.path.join(self.tmp_folder, "right-resized.jpg")
-        
-        cv2.imwrite(imgL_path, imgL_resized)
-        cv2.imwrite(imgR_path, imgR_resized)
-        
-        # upload resized image 
-        self.upload_file(imgL_path, os.path.join(self.dest_URI, "left.jpg"))
-        self.upload_file(imgR_path, os.path.join(self.dest_URI, "right.jpg"))
-
-        # update index
-        self.INDEX.update_file(self.src_URI, 'left-img')
-        self.INDEX.update_file(self.src_URI, 'right-img')
-
-    else:
-        self.logger.error(f"=======================")
-        self.logger.error(f"Skipping step 4...")
-        self.logger.error(f"=======================\n")
-
-    # =================
-    # 5. save index
-    # =================
-    self.INDEX.save_index()
 
 
 if __name__ == "__main__":  
@@ -416,36 +309,36 @@ if __name__ == "__main__":
     # CASE 0: testing bev_generator.pcd_to_seg_mask_mono()
     # ================================================
 
-    # src_folder = "train-data"
-    # dst_folder = "debug/output-seg-masks"
-    # bev_generator = BEVGenerator()
+    src_folder = "train-data"
+    dst_folder = "debug/output-seg-masks"
+    bev_generator = BEVGenerator()
 
-    # crop_bb = {'x_min': -5, 'x_max': 5, 'z_min': 0, 'z_max': 10}
-    # nx = 400
-    # nz = 400
+    crop_bb = {'x_min': -5, 'x_max': 5, 'z_min': 0, 'z_max': 10}
+    nx = 400
+    nz = 400
 
-    # if not os.path.exists(dst_folder):
-    #     os.makedirs(dst_folder)
+    if not os.path.exists(dst_folder):
+        os.makedirs(dst_folder)
 
-    # left_segmented_labelled_files = []
+    left_segmented_labelled_files = []
 
-    # total_files = sum(len(files) for _, _, files in os.walk(src_folder) if 'left-segmented-labelled.ply' in files)
-    # with tqdm(total=total_files, desc="Processing files", ncols=100) as pbar:
-    #     for root, dirs, files in os.walk(src_folder):
-    #         for file in files:
-    #             if file == 'left-segmented-labelled.ply':
-    #                 file_path = os.path.join(root, file)
-    #                 left_segmented_labelled_files.append(file_path)
+    total_files = sum(len(files) for _, _, files in os.walk(src_folder) if 'left-segmented-labelled.ply' in files)
+    with tqdm(total=total_files, desc="Processing files", ncols=100) as pbar:
+        for root, dirs, files in os.walk(src_folder):
+            for file in files:
+                if file == 'left-segmented-labelled.ply':
+                    file_path = os.path.join(root, file)
+                    left_segmented_labelled_files.append(file_path)
 
-    #                 try:
-    #                     pcd_input = o3d.t.io.read_point_cloud(file_path)
-    #                     seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
-    #                                                                                  nx=nx, nz=nz, 
-    #                                                                                  bb=crop_bb)
+                    try:
+                        pcd_input = o3d.t.io.read_point_cloud(file_path)
+                        seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+                                                                                     nx=nx, nz=nz, 
+                                                                                     bb=crop_bb)
 
-    #                     output_rgb_path = os.path.join(dst_folder, f"seg-mask-rgb-{os.path.basename(root)}.png")
-    #                     cv2.imwrite(output_rgb_path, seg_mask_rgb)
-    #                 except Exception as e:
-    #                     logger.error(f"Error processing {file_path}: {e}")
+                        output_rgb_path = os.path.join(dst_folder, f"seg-mask-rgb-{os.path.basename(root)}.png")
+                        cv2.imwrite(output_rgb_path, seg_mask_rgb)
+                    except Exception as e:
+                        logger.error(f"Error processing {file_path}: {e}")
     
-    #                 pbar.update(1)
+                    pbar.update(1)

@@ -264,7 +264,7 @@ class BEVGenerator:
         pcd_navigable: o3d.t.geometry.PointCloud, 
         additional_pointclouds: List[o3d.t.geometry.PointCloud]
     ) -> List[o3d.t.geometry.PointCloud]:
-        ''' Project the input pointclouds to the navigable plane '''
+        ''' Project the additional pointclouds to the navigable plane '''
         
         normal, inliers = self.get_class_plane(pcd_navigable, self.LABELS["NAVIGABLE_SPACE"]["id"])
         normal = normal / np.linalg.norm(normal)

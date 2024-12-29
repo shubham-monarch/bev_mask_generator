@@ -371,11 +371,7 @@ if __name__ == "__main__":
         "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
     ]
 
-    # BEV_URIs = [
-    #     "s3://occupancy-dataset/bev-dataset/vineyards/gallo/",
-    #     "s3://occupancy-dataset/bev-dataset/vineyards/RJM/"
-    # ]
-
+    
 
     logger = get_logger("data-generator-s3")
     
@@ -389,6 +385,18 @@ if __name__ == "__main__":
                                         crop_bb=crop_bb)
     
     data_generator_s3.generate_bev_dataset()
+    
+    # =================
+    # counting processed frames
+    # =================
+    # BEV_URIs = [
+    #     "s3://occupancy-dataset/bev-dataset-2-to-7/vineyards/gallo/",
+    #     "s3://occupancy-dataset/bev-dataset-2-to-7/vineyards/RJM/"
+    # ]
+    # data_generator_s3 = DataGeneratorS3(src_URIs=BEV_URIs, 
+    #                                     dest_folder="bev-dataset-2-to-7",
+    #                                     index_json=json_path, 
+    #                                     crop_bb=crop_bb)
     
     # leaf_folder_cnt = len(data_generator_s3.get_leaf_folders())
     
