@@ -18,72 +18,127 @@ class RotationUtils:
 
     @staticmethod
     def ypr_to_rotation_matrix(yaw: float, pitch: float, roll: float) -> np.ndarray:
-        '''Convert yaw, pitch, roll angles in degrees to 3x3 rotation matrix'''
+        '''
+        Convert yaw, pitch, roll angles in degrees to a 3x3 rotation matrix.
+        Follows the ZYX convention (yaw → pitch → roll)
+        
+        Args:
+            yaw (float): rotation around Z axis in degrees
+            pitch (float): rotation around Y axis in degrees
+            roll (float): rotation around X axis in degrees
+            
+        Returns:
+            np.ndarray: 3x3 rotation matrix
+        '''
         # Convert angles to radians
-        yaw = np.radians(yaw)
-        pitch = np.radians(pitch)
-        roll = np.radians(roll)
+        yaw_rad = np.radians(yaw)
+        pitch_rad = np.radians(pitch)
+        roll_rad = np.radians(roll)
 
-        # Rotation matrices for each axis
-        Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0],
-                      [np.sin(yaw), np.cos(yaw), 0],
+        # Individual rotation matrices
+        # Rz (yaw) - rotation around Z axis
+        Rz = np.array([[np.cos(yaw_rad), -np.sin(yaw_rad), 0],
+                      [np.sin(yaw_rad), np.cos(yaw_rad), 0],
                       [0, 0, 1]])
 
-        Ry = np.array([[np.cos(pitch), 0, np.sin(pitch)],
+        # Ry (pitch) - rotation around Y axis
+        Ry = np.array([[np.cos(pitch_rad), 0, np.sin(pitch_rad)],
                       [0, 1, 0],
-                      [-np.sin(pitch), 0, np.cos(pitch)]])
+                      [-np.sin(pitch_rad), 0, np.cos(pitch_rad)]])
 
+        # Rx (roll) - rotation around X axis
         Rx = np.array([[1, 0, 0],
-                      [0, np.cos(roll), -np.sin(roll)],
-                      [0, np.sin(roll), np.cos(roll)]])
+                      [0, np.cos(roll_rad), -np.sin(roll_rad)],
+                      [0, np.sin(roll_rad), np.cos(roll_rad)]])
 
-        # Combined rotation matrix R = Rz * Ry * Rx
-        R = np.dot(Rz, np.dot(Ry, Rx))
+        # Combined rotation matrix R = Rz * Ry * Rx (ZYX convention)
+        R = Rz @ Ry @ Rx
         return R
 
     @staticmethod
-    def rotation_matrix_to_ypr(R):
+    def rotation_matrix_to_ypr(R: np.ndarray) -> Tuple[float, float, float]:
         '''
-        Convert rotation matrix to yaw, pitch, roll
+        Convert rotation matrix to yaw, pitch, roll angles using ZYX convention.
+        
+        Args:
+            R (np.ndarray): 3x3 rotation matrix
+            
+        Returns:
+            Tuple[float, float, float]: yaw, pitch, roll angles in degrees
         '''
-        sy = np.sqrt(R[0, 0] ** 2 + R[1, 0] ** 2)
-        singular = sy < 1e-6
+        # Ensure proper matrix shape
+        if R.shape != (3, 3):
+            raise ValueError("Input matrix must be 3x3")
+
+        # Extract angles using ZYX convention
+        # Handle singularity when cos(pitch) is close to zero
+        cos_pitch = np.sqrt(R[0, 0]**2 + R[1, 0]**2)
+        singular = cos_pitch < 1e-6
 
         if not singular:
-            yaw = np.arctan2(R[2, 1], R[2, 2])
-            pitch = np.arctan2(-R[2, 0], sy)
-            roll = np.arctan2(R[1, 0], R[0, 0])
+            yaw = np.arctan2(R[1, 0], R[0, 0])  # atan2(sin(yaw)cos(pitch), cos(yaw)cos(pitch))
+            pitch = np.arctan2(-R[2, 0], cos_pitch)  # atan2(-sin(pitch), cos(pitch))
+            roll = np.arctan2(R[2, 1], R[2, 2])  # atan2(sin(roll)cos(pitch), cos(roll)cos(pitch))
         else:
-            yaw = np.arctan2(-R[1, 2], R[1, 1])
-            pitch = np.arctan2(-R[2, 0], sy)
-            roll = 0
+            # Gimbal lock case (pitch = ±90°)
+            yaw = np.arctan2(-R[1, 2], R[1, 1])  # arbitrary choice
+            pitch = np.arctan2(-R[2, 0], cos_pitch)  # ±90°
+            roll = 0  # arbitrary choice
 
         return np.degrees(yaw), np.degrees(pitch), np.degrees(roll)
 
     @staticmethod
     def rotation_matrix_to_axis_angles(R: np.ndarray) -> Tuple[float, float, float]:
-        '''Convert 3x3 rotation matrix to angles with x, y, z axes in degrees'''
+        '''
+        Convert 3x3 rotation matrix to angles between rotated and original coordinate axes.
         
-        # Check matrix shape first
+        Args:
+            R (np.ndarray): 3x3 rotation matrix
+            
+        Returns:
+            Tuple[float, float, float]: angles (in degrees) between original and rotated 
+                                       x, y, and z axes respectively
+        '''
         if R.shape != (3, 3):
-            raise AssertionError("Rotation matrix must be 3x3")
+            raise ValueError("Rotation matrix must be 3x3")
         
-        # Unit vectors along each axis
+        # Original coordinate axes
         x_axis = np.array([1, 0, 0])
         y_axis = np.array([0, 1, 0])
         z_axis = np.array([0, 0, 1])
         
-        # Apply rotation to each axis vector
-        rotated_x = np.dot(R, x_axis)
-        rotated_y = np.dot(R, y_axis)
-        rotated_z = np.dot(R, z_axis)
+        # Rotated coordinate axes
+        rotated_x = R @ x_axis
+        rotated_y = R @ y_axis
+        rotated_z = R @ z_axis
         
         # Calculate angles between original and rotated axes
+        # Using np.clip to handle numerical precision issues
         angle_x = np.arccos(np.clip(np.dot(x_axis, rotated_x), -1.0, 1.0))
         angle_y = np.arccos(np.clip(np.dot(y_axis, rotated_y), -1.0, 1.0))
         angle_z = np.arccos(np.clip(np.dot(z_axis, rotated_z), -1.0, 1.0))
         
         return np.degrees(angle_x), np.degrees(angle_y), np.degrees(angle_z)
+
+    @staticmethod
+    def verify_rotation_conversion(R: np.ndarray, tolerance: float = 1e-10) -> bool:
+        '''
+        Verify that rotation matrix conversions are consistent.
+        
+        Args:
+            R (np.ndarray): Original rotation matrix
+            tolerance (float): Maximum allowed difference between matrices
+            
+        Returns:
+            bool: True if conversion is consistent within tolerance
+        '''
+        # Convert to YPR and back to rotation matrix
+        yaw, pitch, roll = RotationUtils.rotation_matrix_to_ypr(R)
+        R_reconstructed = RotationUtils.ypr_to_rotation_matrix(yaw, pitch, roll)
+        
+        # Check if matrices are similar within tolerance
+        diff = np.abs(R - R_reconstructed).max()
+        return diff <= tolerance
 
 
 
@@ -284,6 +339,13 @@ class BEVGenerator:
         self.logger.error(f"=================================")      
         self.logger.error(f"yaw: {yaw:.2f} degrees, pitch: {pitch:.2f} degrees, roll: {roll:.2f} degrees")
         self.logger.error(f"=================================\n")
+
+        R_ = RotationUtils.ypr_to_rotation_matrix(yaw, pitch, roll)
+        ax_x_, ax_y_, ax_z_ = RotationUtils.rotation_matrix_to_axis_angles(R_)
+
+        self.logger.info(f"=================================")      
+        self.logger.info(f"ax_x_: {ax_x_:.2f} degrees, ax_y_: {ax_y_:.2f} degrees, ax_z_: {ax_z_:.2f} degrees")
+        self.logger.info(f"=================================\n")
 
         axis_x, axis_y, axis_z = RotationUtils.rotation_matrix_to_axis_angles(R)
         self.logger.warning(f"=================================")      

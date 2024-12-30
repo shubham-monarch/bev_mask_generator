@@ -147,7 +147,7 @@ evaluation infrastructure
 - utility to classify dataset into [object / pole / vineyard ] heavy
 
 + add as submodule to stereo-occ
-- refactoring [scripts, .gitkeep]
+- refactoring [scripts, .gitkeep, bash]
 - fix horizonal rotation in GT-seg-masks 
 - fix slanting of pole lines \ uneven vine pole horizontal separation
 - fix camera extrinsics calculation
