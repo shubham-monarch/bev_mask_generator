@@ -154,3 +154,4 @@ evaluation infrastructure
 - review tilt correction --> axis angles calculations 
 - start occlusion map pipeline
 - add static methods in bev-generator
+- fill ground points in GT-seg-masks
