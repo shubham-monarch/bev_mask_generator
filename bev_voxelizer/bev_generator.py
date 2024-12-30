@@ -17,6 +17,31 @@ class RotationUtils:
         pass    
 
     @staticmethod
+    def ypr_to_rotation_matrix(yaw: float, pitch: float, roll: float) -> np.ndarray:
+        '''Convert yaw, pitch, roll angles in degrees to 3x3 rotation matrix'''
+        # Convert angles to radians
+        yaw = np.radians(yaw)
+        pitch = np.radians(pitch)
+        roll = np.radians(roll)
+
+        # Rotation matrices for each axis
+        Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0],
+                      [np.sin(yaw), np.cos(yaw), 0],
+                      [0, 0, 1]])
+
+        Ry = np.array([[np.cos(pitch), 0, np.sin(pitch)],
+                      [0, 1, 0],
+                      [-np.sin(pitch), 0, np.cos(pitch)]])
+
+        Rx = np.array([[1, 0, 0],
+                      [0, np.cos(roll), -np.sin(roll)],
+                      [0, np.sin(roll), np.cos(roll)]])
+
+        # Combined rotation matrix R = Rz * Ry * Rx
+        R = np.dot(Rz, np.dot(Ry, Rx))
+        return R
+
+    @staticmethod
     def rotation_matrix_to_ypr(R):
         '''
         Convert rotation matrix to yaw, pitch, roll

@@ -142,7 +142,10 @@ generate additional data
 - fix tilt rectification calculations / comments
 - prepare occ mask
 - stereo-rectification
-- fix potential horizontal tilt issue
+- fix potential horizontal tilt issue in gt-seg masks
 - dedicated class for angle transformations [ypr, R, axis-angles]
 - add bev-voxelizer as a separate module in stereo-occ
 - fix multiple tmp folders
+- refactoring -> [scripts, tmp, configs, .gitkeep]
+- integrate data-generator-s3.py
+- check if num files is same in z(0-5) and z(2-7)
