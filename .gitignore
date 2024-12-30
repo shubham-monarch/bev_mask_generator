@@ -15,7 +15,6 @@ test/*
 # pipeline-folders
 output/*
 input/*
-config/*
 svo-test/*
 output-backend/*
 input-backend/*
