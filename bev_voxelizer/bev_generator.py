@@ -7,6 +7,7 @@ import open3d.core as o3c
 from scipy.spatial import cKDTree
 from typing import List, Tuple, Optional
 import torch
+from numpy.typing import NDArray
 
 from helpers import crop_pcd, mono_to_rgb_mask
 from logger import get_logger
@@ -25,7 +26,7 @@ class BEVGenerator:
         }
         
         self.R = None
-        self.logger = get_logger("bev_generator", level=logging.ERROR)
+        self.logger = get_logger("bev_generator", level=logging.INFO)
 
     
     def filter_radius_outliers(self, pcd: o3d.t.geometry.PointCloud, nb_points: int, search_radius: float):
@@ -97,7 +98,6 @@ class BEVGenerator:
         angle_y = np.arccos(np.dot(vec, y_axis) / np.linalg.norm(vec))
         angle_z = np.arccos(np.dot(vec, z_axis) / np.linalg.norm(vec))
         
-        # pitch, yaw, roll
         return np.degrees(angle_x), np.degrees(angle_y), np.degrees(angle_z)
 
     def compute_tilt_matrix(self, pcd: o3d.t.geometry.PointCloud):
@@ -220,6 +220,17 @@ class BEVGenerator:
         self.R = R
         yaw, pitch, roll = self.rotation_matrix_to_ypr(R)
 
+        self.logger.error(f"=================================")      
+        self.logger.error(f"yaw: {yaw:.2f} degrees, pitch: {pitch:.2f} degrees, roll: {roll:.2f} degrees")
+        self.logger.error(f"=================================\n")
+
+        axis_x, axis_y, axis_z = self.rotation_matrix_to_axis_angles(R)
+        self.logger.warning(f"=================================")      
+        self.logger.warning(f"axis_x: {axis_x:.2f} degrees, axis_y: {axis_y:.2f} degrees, axis_z: {axis_z:.2f} degrees")
+        self.logger.warning(f"=================================\n")
+
+        exit(1)
+
         # sanity check
         normal, _ = self.get_class_plane(pcd_input, self.LABELS["NAVIGABLE_SPACE"]["id"])
         
@@ -274,7 +285,7 @@ class BEVGenerator:
         angle_y = self.axis_angles(normal)[1]
         # self.logger.info(f"Angle between normal and y-axis: {angle_y:.2f} degrees")
 
-        # align normal with +y-axis if angle with y-axis is negative
+        # align normal with +y-axis 
         if angle_y < 0:
             normal = -normal
 
@@ -563,3 +574,29 @@ class BEVGenerator:
         R = self.R.T
         T[:3, :3] = R
         return T
+
+    def rotation_matrix_to_axis_angles(self, R: np.ndarray) -> Tuple[float, float, float]:
+        '''Convert 3x3 rotation matrix to angles with x, y, z axes in degrees'''
+        
+        # Check matrix shape first
+        if R.shape != (3, 3):
+            raise AssertionError("Rotation matrix must be 3x3")
+        
+        # Unit vectors along each axis
+        x_axis = np.array([1, 0, 0])
+        y_axis = np.array([0, 1, 0])
+        z_axis = np.array([0, 0, 1])
+        
+        # Apply rotation to each axis vector
+        rotated_x = np.dot(R, x_axis)
+        rotated_y = np.dot(R, y_axis)
+        rotated_z = np.dot(R, z_axis)
+        
+        # Calculate angles between original and rotated axes
+        angle_x = np.arccos(np.clip(np.dot(x_axis, rotated_x), -1.0, 1.0))
+        angle_y = np.arccos(np.clip(np.dot(y_axis, rotated_y), -1.0, 1.0))
+        angle_z = np.arccos(np.clip(np.dot(z_axis, rotated_z), -1.0, 1.0))
+        
+        return np.degrees(angle_x), np.degrees(angle_y), np.degrees(angle_z)
+
+

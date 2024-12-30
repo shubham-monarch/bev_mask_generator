@@ -8,8 +8,7 @@ from tqdm import tqdm
 from bev_generator import BEVGenerator
 from logger import get_logger
 import numpy as np
-from helpers import mono_to_rgb_mask, crop_pcd, R_to_rvec, get_zed_camera_params, cam_extrinsics
-from read_write_model import qvec2rotmat, read_images_binary
+# from helpers import mono_to_rgb_mask, crop_pcd, R_to_rvec, get_zed_camera_params, cam_extrinsics
 
 
 logger = get_logger("debug")
@@ -50,6 +49,22 @@ def project_pcd_to_camera(pcd_input, camera_matrix, image_size, rvec=None, tvec=
 if __name__ == "__main__":  
      
     pass
+
+    # ================================================
+    # CASE 7: testing BEVGenerator
+    # ================================================
+    
+    pcd_input = o3d.t.io.read_point_cloud("debug/frames/frame-2686/left-segmented-labelled.ply")
+    
+    bev_generator = BEVGenerator()
+    pcd_rectified: o3d.t.geometry.PointCloud = bev_generator.tilt_rectification(pcd_input)
+    
+    # write rectified pointcloud to disk
+    # os.makedirs("debug/rectified/frame-2686", exist_ok=True)
+    # o3d.t.io.write_point_cloud("debug/rectified/frame-2686/left-segmented-labelled.ply", pcd_rectified)
+
+
+
     
     # ================================================
     # CASE 6: testing bev_generator.updated_camera_extrinsics()
@@ -309,36 +324,36 @@ if __name__ == "__main__":
     # CASE 0: testing bev_generator.pcd_to_seg_mask_mono()
     # ================================================
 
-    src_folder = "train-data"
-    dst_folder = "debug/output-seg-masks"
-    bev_generator = BEVGenerator()
+    # src_folder = "train-data"
+    # dst_folder = "debug/output-seg-masks"
+    # bev_generator = BEVGenerator()
 
-    crop_bb = {'x_min': -5, 'x_max': 5, 'z_min': 0, 'z_max': 10}
-    nx = 400
-    nz = 400
+    # crop_bb = {'x_min': -5, 'x_max': 5, 'z_min': 0, 'z_max': 10}
+    # nx = 400
+    # nz = 400
 
-    if not os.path.exists(dst_folder):
-        os.makedirs(dst_folder)
+    # if not os.path.exists(dst_folder):
+    #     os.makedirs(dst_folder)
 
-    left_segmented_labelled_files = []
+    # left_segmented_labelled_files = []
 
-    total_files = sum(len(files) for _, _, files in os.walk(src_folder) if 'left-segmented-labelled.ply' in files)
-    with tqdm(total=total_files, desc="Processing files", ncols=100) as pbar:
-        for root, dirs, files in os.walk(src_folder):
-            for file in files:
-                if file == 'left-segmented-labelled.ply':
-                    file_path = os.path.join(root, file)
-                    left_segmented_labelled_files.append(file_path)
+    # total_files = sum(len(files) for _, _, files in os.walk(src_folder) if 'left-segmented-labelled.ply' in files)
+    # with tqdm(total=total_files, desc="Processing files", ncols=100) as pbar:
+    #     for root, dirs, files in os.walk(src_folder):
+    #         for file in files:
+    #             if file == 'left-segmented-labelled.ply':
+    #                 file_path = os.path.join(root, file)
+    #                 left_segmented_labelled_files.append(file_path)
 
-                    try:
-                        pcd_input = o3d.t.io.read_point_cloud(file_path)
-                        seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
-                                                                                     nx=nx, nz=nz, 
-                                                                                     bb=crop_bb)
+    #                 try:
+    #                     pcd_input = o3d.t.io.read_point_cloud(file_path)
+    #                     seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+    #                                                                                  nx=nx, nz=nz, 
+    #                                                                                  bb=crop_bb)
 
-                        output_rgb_path = os.path.join(dst_folder, f"seg-mask-rgb-{os.path.basename(root)}.png")
-                        cv2.imwrite(output_rgb_path, seg_mask_rgb)
-                    except Exception as e:
-                        logger.error(f"Error processing {file_path}: {e}")
+    #                     output_rgb_path = os.path.join(dst_folder, f"seg-mask-rgb-{os.path.basename(root)}.png")
+    #                     cv2.imwrite(output_rgb_path, seg_mask_rgb)
+    #                 except Exception as e:
+    #                     logger.error(f"Error processing {file_path}: {e}")
     
-                    pbar.update(1)
+    #                 pbar.update(1)

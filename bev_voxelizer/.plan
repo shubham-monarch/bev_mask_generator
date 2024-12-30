@@ -118,21 +118,6 @@ indexing
 
 
 ======================
-demo 
-======================
-- dairy data pipeline integrated with help --> show samples --> left.jpg  / pcd-rgb / pcd-seg
-- video --> only 100 samples  metric accuracy map 
-- per-pixel loss --> weighted cross entropy / focal loss  
-- class imbalance problem --> data augmentation 
-
-- overfitted masks
-- bev-s3-generator working
-- 1200 frames added
-- need to add occlusion mask + ipm features + stereo-rectification 
-- evaluation infrastructure in progress
-
-
-======================
 eval cases
 ======================
 - stereo-rectification
@@ -154,6 +139,7 @@ generate additional data
 + combine sbevnet with stereo-occ
 
 
-- fix tilt rectification
+- fix tilt rectification calculations / comments
 - prepare occ mask
 - stereo-rectification
+- fix potential horizontal tilt issue
