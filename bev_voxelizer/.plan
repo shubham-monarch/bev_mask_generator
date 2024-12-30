@@ -143,3 +143,6 @@ generate additional data
 - prepare occ mask
 - stereo-rectification
 - fix potential horizontal tilt issue
+- dedicated class for angle transformations [ypr, R, axis-angles]
+- add bev-voxelizer as a separate module in stereo-occ
+- fix multiple tmp folders

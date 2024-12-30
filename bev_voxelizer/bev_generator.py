@@ -7,10 +7,43 @@ import open3d.core as o3c
 from scipy.spatial import cKDTree
 from typing import List, Tuple, Optional
 import torch
-from numpy.typing import NDArray
 
 from helpers import crop_pcd, mono_to_rgb_mask
 from logger import get_logger
+
+
+class RotationUtils:
+    def __init__(self):
+        pass    
+
+    @staticmethod
+    def rotation_matrix_to_axis_angles(R: np.ndarray) -> Tuple[float, float, float]:
+        '''Convert 3x3 rotation matrix to angles with x, y, z axes in degrees'''
+        
+        # Check matrix shape first
+        if R.shape != (3, 3):
+            raise AssertionError("Rotation matrix must be 3x3")
+        
+        # Unit vectors along each axis
+        x_axis = np.array([1, 0, 0])
+        y_axis = np.array([0, 1, 0])
+        z_axis = np.array([0, 0, 1])
+        
+        # Apply rotation to each axis vector
+        rotated_x = np.dot(R, x_axis)
+        rotated_y = np.dot(R, y_axis)
+        rotated_z = np.dot(R, z_axis)
+        
+        # Calculate angles between original and rotated axes
+        angle_x = np.arccos(np.clip(np.dot(x_axis, rotated_x), -1.0, 1.0))
+        angle_y = np.arccos(np.clip(np.dot(y_axis, rotated_y), -1.0, 1.0))
+        angle_z = np.arccos(np.clip(np.dot(z_axis, rotated_z), -1.0, 1.0))
+        
+        return np.degrees(angle_x), np.degrees(angle_y), np.degrees(angle_z)
+
+
+
+    
 
 class BEVGenerator:
     def __init__(self):
@@ -224,7 +257,7 @@ class BEVGenerator:
         self.logger.error(f"yaw: {yaw:.2f} degrees, pitch: {pitch:.2f} degrees, roll: {roll:.2f} degrees")
         self.logger.error(f"=================================\n")
 
-        axis_x, axis_y, axis_z = self.rotation_matrix_to_axis_angles(R)
+        axis_x, axis_y, axis_z = RotationUtils.rotation_matrix_to_axis_angles(R)
         self.logger.warning(f"=================================")      
         self.logger.warning(f"axis_x: {axis_x:.2f} degrees, axis_y: {axis_y:.2f} degrees, axis_z: {axis_z:.2f} degrees")
         self.logger.warning(f"=================================\n")
@@ -575,28 +608,4 @@ class BEVGenerator:
         T[:3, :3] = R
         return T
 
-    def rotation_matrix_to_axis_angles(self, R: np.ndarray) -> Tuple[float, float, float]:
-        '''Convert 3x3 rotation matrix to angles with x, y, z axes in degrees'''
-        
-        # Check matrix shape first
-        if R.shape != (3, 3):
-            raise AssertionError("Rotation matrix must be 3x3")
-        
-        # Unit vectors along each axis
-        x_axis = np.array([1, 0, 0])
-        y_axis = np.array([0, 1, 0])
-        z_axis = np.array([0, 0, 1])
-        
-        # Apply rotation to each axis vector
-        rotated_x = np.dot(R, x_axis)
-        rotated_y = np.dot(R, y_axis)
-        rotated_z = np.dot(R, z_axis)
-        
-        # Calculate angles between original and rotated axes
-        angle_x = np.arccos(np.clip(np.dot(x_axis, rotated_x), -1.0, 1.0))
-        angle_y = np.arccos(np.clip(np.dot(y_axis, rotated_y), -1.0, 1.0))
-        angle_z = np.arccos(np.clip(np.dot(z_axis, rotated_z), -1.0, 1.0))
-        
-        return np.degrees(angle_x), np.degrees(angle_y), np.degrees(angle_z)
-
-
+  
