@@ -51,18 +51,47 @@ if __name__ == "__main__":
     pass
 
     # ================================================
+    # CASE 8: testing BEVGenerator success
+    # ================================================
+
+    pcd_dir = f"debug/frames"
+    
+    success_count = 0
+    total_count = 0
+
+    bev_generator = BEVGenerator()
+    
+    for root, _, files in os.walk(pcd_dir):
+        for file in files:
+            if file == "left-segmented-labelled.ply":
+                total_count += 1
+                pcd_path = os.path.join(root, file)
+                try:
+                    pcd_input = o3d.t.io.read_point_cloud(pcd_path)
+                    bev_generator.tilt_rectification(pcd_input)
+                    success_count += 1
+                    logger.info(f"Successfully processed: {pcd_path}")
+                except Exception as e:
+                    logger.error(f"Error processing {pcd_path}: {e}")
+
+    if total_count > 0:
+        success_rate = (success_count / total_count) * 100
+        logger.info(f"================================================")
+        logger.info(f"Success Rate: {success_rate:.2f}% ({success_count}/{total_count})")
+        logger.info(f"================================================\n")
+    else:
+        logger.warning("No 'left-segmented-labelled.ply' files found.")
+
+    # CASE 7: testing BEVGenerator
+    # ================================================
     # CASE 7: testing BEVGenerator
     # ================================================
     
-    pcd_input = o3d.t.io.read_point_cloud("debug/frames/frame-2686/left-segmented-labelled.ply")
+    # pcd_input = o3d.t.io.read_point_cloud("debug/frames/frame-2686/left-segmented-labelled.ply")
     
-    bev_generator = BEVGenerator()
-    pcd_rectified: o3d.t.geometry.PointCloud = bev_generator.tilt_rectification(pcd_input)
+    # bev_generator = BEVGenerator()
+    # pcd_rectified: o3d.t.geometry.PointCloud = bev_generator.tilt_rectification(pcd_input)
     
-    # write rectified pointcloud to disk
-    # os.makedirs("debug/rectified/frame-2686", exist_ok=True)
-    # o3d.t.io.write_point_cloud("debug/rectified/frame-2686/left-segmented-labelled.ply", pcd_rectified)
-
 
 
     

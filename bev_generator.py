@@ -160,6 +160,9 @@ class BEVGenerator:
         self.R = None
         self.logger = get_logger("bev_generator", level=logging.INFO)
 
+        self.logger.info(f"=================================")      
+        self.logger.info(f"BEVGenerator initialized")
+        self.logger.info(f"=================================\n")
     
     def filter_radius_outliers(self, pcd: o3d.t.geometry.PointCloud, nb_points: int, search_radius: float):
         '''
@@ -334,59 +337,60 @@ class BEVGenerator:
         '''
         R = self.compute_tilt_matrix(pcd_input)
         self.R = R
-        yaw, pitch, roll = RotationUtils.rotation_matrix_to_ypr(R)
+        # yaw, pitch, roll = RotationUtils.rotation_matrix_to_ypr(R)
 
-        self.logger.error(f"=================================")      
-        self.logger.error(f"yaw: {yaw:.2f} degrees, pitch: {pitch:.2f} degrees, roll: {roll:.2f} degrees")
-        self.logger.error(f"=================================\n")
+        # self.logger.error(f"=================================")      
+        # self.logger.error(f"yaw: {yaw:.2f} degrees, pitch: {pitch:.2f} degrees, roll: {roll:.2f} degrees")
+        # self.logger.error(f"=================================\n")
 
-        R_ = RotationUtils.ypr_to_rotation_matrix(yaw, pitch, roll)
-        ax_x_, ax_y_, ax_z_ = RotationUtils.rotation_matrix_to_axis_angles(R_)
+        # R_ = RotationUtils.ypr_to_rotation_matrix(yaw, pitch, roll)
+        # ax_x_, ax_y_, ax_z_ = RotationUtils.rotation_matrix_to_axis_angles(R_)
 
-        self.logger.info(f"=================================")      
-        self.logger.info(f"ax_x_: {ax_x_:.2f} degrees, ax_y_: {ax_y_:.2f} degrees, ax_z_: {ax_z_:.2f} degrees")
-        self.logger.info(f"=================================\n")
+        # self.logger.info(f"=================================")      
+        # self.logger.info(f"ax_x_: {ax_x_:.2f} degrees, ax_y_: {ax_y_:.2f} degrees, ax_z_: {ax_z_:.2f} degrees")
+        # self.logger.info(f"=================================\n")
 
+        # [before tilt rectification]
+        # angle made by the normal vector with the [x-axis, y-axis, z-axis]
         axis_x, axis_y, axis_z = RotationUtils.rotation_matrix_to_axis_angles(R)
+        
         self.logger.warning(f"=================================")      
+        self.logger.warning(f"BEFORE TILT RECTIFICATION...")
         self.logger.warning(f"axis_x: {axis_x:.2f} degrees, axis_y: {axis_y:.2f} degrees, axis_z: {axis_z:.2f} degrees")
         self.logger.warning(f"=================================\n")
 
-        exit(1)
+        # exit(1)
 
         # sanity check
         normal, _ = self.get_class_plane(pcd_input, self.LABELS["NAVIGABLE_SPACE"]["id"])
         
-        self.logger.info(f"=================================")      
-        self.logger.info(f"[BEFORE] normal.shape: {normal.shape}")
-        self.logger.info(f"=================================\n")
+        # self.logger.info(f"=================================")      
+        # self.logger.info(f"[BEFORE] normal.shape: {normal.shape}")
+        # self.logger.info(f"=================================\n")
         
         normal_ = np.dot(normal, R.T)
         
-        self.logger.info(f"=================================")      
-        self.logger.info(f"[AFTER] normal_.shape: {normal_.shape}")
-        self.logger.info(f"=================================\n")
+        # self.logger.warning(f"=================================")      
+        # self.logger.warning(f"[AFTER] normal_.shape: {normal_.shape}")
+        # self.logger.warning(f"=================================\n")
 
-        # Calculate angles using the axis_angles function
+        # [after tilt rectification]
+        # angle made by the normal vector with the [x-axis, y-axis, z-axis]
         angles = self.axis_angles(normal_)
         
-        # pitch: rotation around the x-axis.
-        # roll: rotation around the z-axis
-        # yaw: rotation around the y-axis
-        pitch_, roll_, yaw_ = angles[0], angles[2], angles[1]
-
         self.logger.warning(f"=================================")    
-        self.logger.warning(f"[BEFORE TILT RECTIFICATION] Yaw: {yaw:.2f} degrees, Pitch: {pitch:.2f} degrees, Roll: {roll:.2f} degrees")
-        self.logger.warning(f"[AFTER  TILT RECTIFICATION] Yaw: {yaw_:.2f} degrees, Pitch: {pitch_:.2f} degrees, Roll: {roll_:.2f} degrees")
+        self.logger.warning(f"AFTER TILT RECTIFICATION...")
+        self.logger.warning(f"axis_x: {angles[0]:.2f} degrees, axis_y: {angles[1]:.2f} degrees, axis_z: {angles[2]:.2f} degrees")
         self.logger.warning(f"=================================\n")
-
+    
         # angle between normal and y-axis should be close to 0 / 180 degrees
-        if not np.isclose(angles[1], 0, atol=1) and np.isclose(angles[1], 180, atol=1):
-            self.logger.error(f"=================================")    
-            self.logger.error(f"Error: angles_transformed[1] is {angles[1]}, but it should be close to 0 degrees. Please check the tilt correction!")
-            self.logger.error(f"=================================\n")
-            exit(1)
+        assert np.isclose(angles[1], 0, atol=0.01) or np.isclose(angles[1], 180, atol=0.1), \
+            f"Error: angles_transformed[1] is {angles[1]}"\
+            "but it should be close to 0 or 180 degrees (±0.1°)."\
+            "Please check the tilt correction!"
 
+
+        exit(1)
         pcd_corrected = pcd_input.clone()
         
         # making y-axis perpendicular to the ground plane + right-handed coordinate system
