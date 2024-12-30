@@ -118,19 +118,6 @@ indexing
 
 
 ======================
-demo 
-======================
-- dairy data pipeline integrated with help --> show samples --> left.jpg  / pcd-rgb / pcd-seg
-- video --> only 100 samples / improved loss function 
-- metric accuracy map 
-- overfitted masks
-- bev-s3-generator working
-- 1200 frames added
-- need to add occlusion mask + ipm features + stereo-rectification 
-- evaluation infrastructure in progress
-
-
-======================
 eval cases
 ======================
 - stereo-rectification
@@ -160,5 +147,10 @@ evaluation infrastructure
 - utility to classify dataset into [object / pole / vineyard ] heavy
 
 + add as submodule to stereo-occ
-- refactoring [scripts, .gitkeep] 
-- generate occlusion map
+- refactoring [scripts, .gitkeep]
+- fix horizonal rotation in GT-seg-masks 
+- fix slanting of pole lines \ uneven vine pole horizontal separation
+- fix camera extrinsics calculation
+- review tilt correction --> axis angles calculations 
+- start occlusion map pipeline
+- add static methods in bev-generator
