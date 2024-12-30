@@ -17,6 +17,25 @@ class RotationUtils:
         pass    
 
     @staticmethod
+    def rotation_matrix_to_ypr(R):
+        '''
+        Convert rotation matrix to yaw, pitch, roll
+        '''
+        sy = np.sqrt(R[0, 0] ** 2 + R[1, 0] ** 2)
+        singular = sy < 1e-6
+
+        if not singular:
+            yaw = np.arctan2(R[2, 1], R[2, 2])
+            pitch = np.arctan2(-R[2, 0], sy)
+            roll = np.arctan2(R[1, 0], R[0, 0])
+        else:
+            yaw = np.arctan2(-R[1, 2], R[1, 1])
+            pitch = np.arctan2(-R[2, 0], sy)
+            roll = 0
+
+        return np.degrees(yaw), np.degrees(pitch), np.degrees(roll)
+
+    @staticmethod
     def rotation_matrix_to_axis_angles(R: np.ndarray) -> Tuple[float, float, float]:
         '''Convert 3x3 rotation matrix to angles with x, y, z axes in degrees'''
         
@@ -162,23 +181,7 @@ class BEVGenerator:
         normal = normal / np.linalg.norm(normal) 
         return normal, inliers
     
-    def rotation_matrix_to_ypr(self,R):
-        '''
-        Convert rotation matrix to yaw, pitch, roll
-        '''
-        sy = np.sqrt(R[0, 0] ** 2 + R[1, 0] ** 2)
-        singular = sy < 1e-6
 
-        if not singular:
-            yaw = np.arctan2(R[2, 1], R[2, 2])
-            pitch = np.arctan2(-R[2, 0], sy)
-            roll = np.arctan2(R[1, 0], R[0, 0])
-        else:
-            yaw = np.arctan2(-R[1, 2], R[1, 1])
-            pitch = np.arctan2(-R[2, 0], sy)
-            roll = 0
-
-        return np.degrees(yaw), np.degrees(pitch), np.degrees(roll)
 
     def clean_around_label(
         self, 
@@ -251,7 +254,7 @@ class BEVGenerator:
         '''
         R = self.compute_tilt_matrix(pcd_input)
         self.R = R
-        yaw, pitch, roll = self.rotation_matrix_to_ypr(R)
+        yaw, pitch, roll = RotationUtils.rotation_matrix_to_ypr(R)
 
         self.logger.error(f"=================================")      
         self.logger.error(f"yaw: {yaw:.2f} degrees, pitch: {pitch:.2f} degrees, roll: {roll:.2f} degrees")
