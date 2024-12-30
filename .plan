@@ -1,0 +1,162 @@
++ priority based collapsing
++ resolution based collapsing
++ refactoring generate_bev_voxels()
+
++ handling negative values
++ shift logger to init.py
++ fix plot_bev_scatter() color issue
+
+
++ priority based collapsing
++ crop pointcloud to bounding boxs
+- hidden point removal 
++ farthest point sampling
+* checkout bev-former voxelizer
++ statistical outlier removal
++ refactor compute_tilt_matrix()
++ make project_to_ground_plane more robust
+
++ remove main.py
++ major refactoring 
++ remove utils folder
+
+* make [pcd-segmented to bev-segmented pipeline] fast
+* use GPU parallelization
+* use CPU parallelization
+
+- get decent baseline results
+* time the dataset generation step
+
+
++ BEV GT should be centered
+* BEV GT should not have black regions
++ BEV GT should have fixed resolution across files
+
++ fix camera extrinsics 
+
+* need to shift z as well
+* fix [align normal with +y-axis if angle with y-axis is negative] in [project_to_ground_plane]
+* normalize plane normal --> [a,b,c,d]
+* BEV projection was shifted along y. 
++ [debug] project pointcloud to camera to check camera extrinsics
+- fix label merging strategy in pcd_to_seg_mask_mono
+
+* fix compute_tilt_matrix --> align with x and z-axis as well  
+* need to align two axes instead of one
+* [debug] align x and z, and y should automatically align
+
++ generate camera extrinsics as part of dataset
+* why is normal not completely aligning with the y-axis? 
+
+* add test.py
+- change co-ordinate frame to align with the sbevnet axes
++ update generate-train-data.py
+- [debug] sbvenet with only [canopy + navigable-space] as output
+
+* fix yaw / axis-angle logs in bev-generator
+
++ fix BEV GT seg-masks
+- do we need to add real camera extrinsics? 
+- camera instrinsics scaling with image resizing -> [https://chatgpt.com/share/67582768-d0c4-8009-a9b3-edf805c2d2f3]
+- stereo rectification 
+- handle image resizing effect on disparity
+- z / y swap
+- transpose effect
+- z-indices out-of-bounds error while bev_pcd -> bev_png 
+
+
+======================
+testing procedure
+======================
+- testing sequence
+- with camera extrinsics npy
+- with camera extrinsics npy with x / z correction
+- without camera extrinsics npy
+- with real camera extrinsics
+- with intrisics scaling
+- with disparity scaling
+- with transpose
+- with z-bound error fix
+
+
++ add utility to push model-data to s3
+
+
+======================
+aws based bev-generator
+======================
++ start aws based data-generation pipeline
++ index to track processed files
++ add index.json
++ ability to resume 
+- data field agnostic resumption [i.e. left / right / mono / seg-masks-mono / seg-masks-rgb/ occlusion-mask]
+- upload updated index to s3 in every run
+- [util] count number of files in s3 bev-dataset
+
+======================
+implement leafFolder class
+======================
+- close s3 client when leafFolder goes out of scope
+- add leafFolder destructor
+- better name for leafFolder
++ upload  scaled images
+- add exception handling
+- add error handling in process_folder
+* tmp-folder clean-up after each run
+- add native progress bar for upload / download file function
+- rename data-generator-s3.py to pipeline
++ add uploded folder indexing
+- scope for multithreading
+
+
+======================
+indexing
+======================
++ file by file indexing
++ step by step indexing
++ support for more keys
+
+
+======================
+demo 
+======================
+- dairy data pipeline integrated with help --> show samples --> left.jpg  / pcd-rgb / pcd-seg
+- video --> only 100 samples / improved loss function 
+- metric accuracy map 
+- overfitted masks
+- bev-s3-generator working
+- 1200 frames added
+- need to add occlusion mask + ipm features + stereo-rectification 
+- evaluation infrastructure in progress
+
+
+======================
+eval cases
+======================
+- stereo-rectification
+- occlusion masks
+- ipm rgb 
+- ipm fea
+
+
+======================
+generate additional data 
+======================
+- read zed-baseline from svo
+- occlusion mask 
+- ipm rgb
+- ipm fea
+
+
+======================
+evaluation infrastructure 
+======================
+- check sbevnet utils
+- EvalClass 
+- integrate eval cases
+- metrics ?
+- train / eval / test split
+- processing bev-aws to bev-model pipeline
+- utility to classify dataset into [object / pole / vineyard ] heavy
+
++ combine sbevnet with stereo-occ
