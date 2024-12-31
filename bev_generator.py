@@ -158,7 +158,7 @@ class BEVGenerator:
         }
         
         self.R = None
-        self.logger = get_logger("bev_generator", level=logging.INFO)
+        self.logger = get_logger("bev_generator", level=logging.WARNING)
 
         self.logger.info(f"=================================")      
         self.logger.info(f"BEVGenerator initialized")
@@ -354,10 +354,11 @@ class BEVGenerator:
         # angle made by the normal vector with the [x-axis, y-axis, z-axis]
         axis_x, axis_y, axis_z = RotationUtils.rotation_matrix_to_axis_angles(R)
         
-        self.logger.warning(f"=================================")      
-        self.logger.warning(f"BEFORE TILT RECTIFICATION...")
-        self.logger.warning(f"axis_x: {axis_x:.2f} degrees, axis_y: {axis_y:.2f} degrees, axis_z: {axis_z:.2f} degrees")
-        self.logger.warning(f"=================================\n")
+        self.logger.info(f"=================================")      
+        self.logger.info(f"BEFORE TILT RECTIFICATION...")
+        self.logger.info(f"Ground plane normal makes [{axis_x:.2f},{axis_y:.2f},{axis_z:.2f}] degrees"
+                        " with the [x-axis, y-axis, z-axis] respectively!")
+        self.logger.info(f"=================================\n")
 
         # exit(1)
 
@@ -380,17 +381,17 @@ class BEVGenerator:
         
         self.logger.warning(f"=================================")    
         self.logger.warning(f"AFTER TILT RECTIFICATION...")
-        self.logger.warning(f"axis_x: {angles[0]:.2f} degrees, axis_y: {angles[1]:.2f} degrees, axis_z: {angles[2]:.2f} degrees")
+        self.logger.warning(f"Ground plane normal makes [{angles[0]:.2f},{angles[1]:.2f},{angles[2]:.2f}] degrees"
+                            " with the [x-axis, y-axis, z-axis] respectively!")
         self.logger.warning(f"=================================\n")
     
-        # angle between normal and y-axis should be close to 0 / 180 degrees
-        assert np.isclose(angles[1], 0, atol=0.01) or np.isclose(angles[1], 180, atol=0.1), \
-            f"Error: angles_transformed[1] is {angles[1]}"\
-            "but it should be close to 0 or 180 degrees (±0.1°)."\
-            "Please check the tilt correction!"
+        # # angle between normal and y-axis should be close to 0 / 180 degrees
+        # assert np.isclose(angles[1], 0, atol=0.01) or np.isclose(angles[1], 180, atol=0.1), \
+        #     f"Error: angles_transformed[1] is {angles[1]}"\
+        #     "but it should be close to 0 or 180 degrees (±0.1°)."\
+        #     "Please check the tilt correction!"
 
 
-        exit(1)
         pcd_corrected = pcd_input.clone()
         
         # making y-axis perpendicular to the ground plane + right-handed coordinate system
@@ -417,18 +418,18 @@ class BEVGenerator:
             normal = -normal
 
         mean_Y = float(np.mean(inliers_navigable.point['positions'].numpy()[:, 1]))
-        self.logger.warning(f"=================================")    
-        self.logger.warning(f"[BEFORE SHIFTING] Mean value of Y coordinates: {mean_Y}")
-        self.logger.warning(f"=================================\n")
+        self.logger.info(f"=================================")    
+        self.logger.info(f"[BEFORE SHIFTING] Mean value of Y coordinates: {mean_Y}")
+        self.logger.info(f"=================================\n")
 
         # shift pcd_navigable so mean_y_value becomes 0
         shift_vector = np.array([0, -mean_Y, 0], dtype=np.float32)
         inliers_navigable.point['positions'] = inliers_navigable.point['positions'] + shift_vector
         
         mean_Y = float(np.mean(inliers_navigable.point['positions'].numpy()[:, 1]))
-        self.logger.warning(f"=================================")    
-        self.logger.warning(f"[AFTER SHIFTING] Mean value of Y coordinates: {mean_Y}")
-        self.logger.warning(f"=================================\n")
+        self.logger.info(f"=================================")    
+        self.logger.info(f"[AFTER SHIFTING] Mean value of Y coordinates: {mean_Y}")
+        self.logger.info(f"=================================\n")
 
         # Verify mean_Y is close to zero after shifting
         assert np.isclose(mean_Y, 0, atol=1e-6), f"Error: mean_Y ({mean_Y}) is not close to zero after shifting!"

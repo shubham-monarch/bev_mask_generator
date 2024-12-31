@@ -120,38 +120,3 @@ def crop_pcd(pcd: o3d.t.geometry.PointCloud, bb: dict = None) -> o3d.t.geometry.
     )[0]
 
     return pcd.select_by_index(valid_indices)
-
-
-# def add_seg_masks_to_dataset(src_folder: str, dst_folder: str = None):
-#     """Recursively find all 'left-segmented-labelled.ply' files in the given folder path."""
-    
-    
-#     left_segmented_labelled_files = []
-
-#     total_files = sum(len(files) for _, _, files in os.walk(folder_path) if 'left-segmented-labelled.ply' in files)
-#     with tqdm(total=total_files, desc="Processing files", ncols=100) as pbar:
-#         for root, dirs, files in os.walk(folder_path):
-#             for file in files:
-#                 if file == 'left-segmented-labelled.ply':
-#                     file_path = os.path.join(root, file)
-
-#                     logger.warning(f"=================================")
-#                     logger.warning(f"Processing {file_path}")
-#                     logger.warning(f"=================================\n")
-
-#                     left_segmented_labelled_files.append(file_path)
-                    
-#                     pcd_input = o3d.t.io.read_point_cloud(file_path)    
-#                     bev_voxelizer = BevVoxelizer()
-#                     combined_pcd = bev_voxelizer.generate_bev_voxels(pcd_input)
-
-#                     seg_mask_mono = pcd_to_segmentation_mask_mono(combined_pcd)
-#                     seg_mask_rgb = mono_to_rgb_mask(seg_mask_mono, "Mavis.yaml")
-                    
-#                     seg_mask_mono_path = os.path.join(root, 'seg-mask-mono.png')
-#                     seg_mask_rgb_path = os.path.join(root, 'seg-mask-rgb.png')
-                    
-#                     cv2.imwrite(seg_mask_mono_path, seg_mask_mono)
-#                     cv2.imwrite(seg_mask_rgb_path, seg_mask_rgb)
-                    
-#                     pbar.update(1)

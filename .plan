@@ -150,8 +150,13 @@ evaluation infrastructure
 - refactoring [scripts, .gitkeep, bash]
 - fix horizonal rotation in GT-seg-masks 
 - fix slanting of pole lines \ uneven vine pole horizontal separation
-- fix camera extrinsics calculation
+- fix camera extrinsics calculations
 - review tilt correction --> axis angles calculations 
 - start occlusion map pipeline
 - add static methods in bev-generator
 - fill ground points in GT-seg-masks
+- tighten compute_tilt_matrix threshold
+- log global success rate for compute_tilt_matrix
+- use repomix with o1 / gemini-1206 / sonnet 3.5
+- verify number of frames in z[0-5] with z[2-7]
+- clean up compute_tilt_matrix

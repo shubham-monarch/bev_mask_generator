@@ -4,15 +4,15 @@ import open3d as o3d
 import cv2
 import os
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 from bev_generator import BEVGenerator
 from logger import get_logger
 import numpy as np
-# from helpers import mono_to_rgb_mask, crop_pcd, R_to_rvec, get_zed_camera_params, cam_extrinsics
 
 
 logger = get_logger("debug")
-
 
 
 def project_pcd_to_camera(pcd_input, camera_matrix, image_size, rvec=None, tvec=None):
@@ -45,44 +45,112 @@ def project_pcd_to_camera(pcd_input, camera_matrix, image_size, rvec=None, tvec=
     return img
 
 
+def create_scatter_plot(points, labels, figsize=(8, 8)):
+    """
+    Create a scatter plot of points colored by labels
+    
+    Args:
+        points: Nx3 numpy array of point positions
+        labels: N numpy array of point labels
+        figsize: tuple of figure dimensions
+    
+    Returns:
+        numpy array of rendered plot image
+    """
+    # Create matplotlib figure
+    fig = plt.figure(figsize=figsize)
+    canvas = FigureCanvas(fig)
+    ax = fig.add_subplot(111)
+    
+    # Plot points with different colors based on labels
+    unique_labels = np.unique(labels)
+    for label in unique_labels:
+        mask = (labels == label).flatten()
+        ax.scatter(points[mask, 0], points[mask, 1], 
+                  label=f'Label {label}', 
+                  alpha=0.6, 
+                  s=1)
+    
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.legend()
+    ax.grid(True)
+    
+    # Convert matplotlib figure to numpy array
+    canvas.draw()
+    plot_image = np.frombuffer(canvas.tostring_rgb(), dtype=np.uint8)
+    plot_image = plot_image.reshape(canvas.get_width_height()[::-1] + (3,))
+    
+    plt.close(fig)  # Clean up matplotlib figure
+    return plot_image
+
 
 if __name__ == "__main__":  
      
-    pass
 
     # ================================================
-    # CASE 8: testing BEVGenerator success
+    # CASE 8: testing compute_tilt_matrix success-rate
     # ================================================
 
-    pcd_dir = f"debug/frames"
+    pcd_dir = f"debug/frames-2"
+    output_seg_masks_dir = f"debug/seg-masks-2"
+
+    os.makedirs(output_seg_masks_dir, exist_ok=True)
     
     success_count = 0
     total_count = 0
 
     bev_generator = BEVGenerator()
     
+    pcd_files = []
     for root, _, files in os.walk(pcd_dir):
         for file in files:
             if file == "left-segmented-labelled.ply":
-                total_count += 1
-                pcd_path = os.path.join(root, file)
-                try:
-                    pcd_input = o3d.t.io.read_point_cloud(pcd_path)
-                    bev_generator.tilt_rectification(pcd_input)
-                    success_count += 1
-                    logger.info(f"Successfully processed: {pcd_path}")
-                except Exception as e:
-                    logger.error(f"Error processing {pcd_path}: {e}")
+                pcd_files.append(os.path.join(root, file))
+    
+    total_count = len(pcd_files)
+    
+    for pcd_path in tqdm(pcd_files, desc="Processing point clouds"):
+        try:
+            pcd_input = o3d.t.io.read_point_cloud(pcd_path)
+            # bev_generator.tilt_rectification(pcd_input)
+            # success_count += 1
+            
+            crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
+            nx_ = 256
+            nz_ = 256
+            
+            logger.info(f"================================================")
+            logger.info(f"pcd_path: {pcd_path}")
+            logger.info(f"================================================\n")
+            
+            _ , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+                                                            nx = nx_, nz = nz_, 
+                                                            bb = crop_bb)
+            
+            # Create scatter plot
+            points = pcd_input.point['positions'].numpy()
+            labels = pcd_input.point['label'].numpy()
+            scatter_plot = create_scatter_plot(points, labels)
+            
+            # Display scatter plot
+            cv2.imshow("Point Cloud Scatter Plot", scatter_plot)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+            
+            # Save scatter plot
+            output_path = pcd_path.replace(pcd_dir, output_seg_masks_dir)
+            output_path = output_path.replace("left-segmented-labelled.ply", "scatter.png")
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            cv2.imwrite(output_path, scatter_plot)
 
-    if total_count > 0:
-        success_rate = (success_count / total_count) * 100
-        logger.info(f"================================================")
-        logger.info(f"Success Rate: {success_rate:.2f}% ({success_count}/{total_count})")
-        logger.info(f"================================================\n")
-    else:
-        logger.warning("No 'left-segmented-labelled.ply' files found.")
-
-    # CASE 7: testing BEVGenerator
+        except Exception as e:
+            logger.error(f"Error processing {pcd_path}: {e}")
+        
+        # # Also save original seg mask
+        # seg_mask_path = output_path.replace("combined.png", "seg-mask-rgb.png")
+        # cv2.imwrite(seg_mask_path, seg_mask_rgb)
+        
     # ================================================
     # CASE 7: testing BEVGenerator
     # ================================================
