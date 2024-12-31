@@ -159,6 +159,10 @@ class BEVGenerator:
         
         self.R = None
         self.logger = get_logger("bev_generator", level=logging.WARNING)
+        
+        # old / rectified ground plane normal
+        self.old_normal = None  
+        self.new_normal = None
 
         self.logger.info(f"=================================")      
         self.logger.info(f"BEVGenerator initialized")
@@ -235,13 +239,13 @@ class BEVGenerator:
         
         return np.degrees(angle_x), np.degrees(angle_y), np.degrees(angle_z)
 
-    def compute_tilt_matrix(self, pcd: o3d.t.geometry.PointCloud):
+    def compute_tilt_matrix(self, pcd: o3d.t.geometry.PointCloud) -> Tuple[np.ndarray, np.ndarray]:
         '''
         Compute navigation-space tilt w.r.t y-axis
         '''
-        normal, _ = self.get_class_plane(pcd, self.LABELS["NAVIGABLE_SPACE"]["id"])
-        R = self.align_normal_to_y_axis(normal)
-        return R
+        ground_normal,_ = self.get_class_plane(pcd, self.LABELS["NAVIGABLE_SPACE"]["id"])
+        R = self.align_normal_to_y_axis(ground_normal)
+        return R, ground_normal
 
     def get_class_pointcloud(self, pcd: o3d.t.geometry.PointCloud, class_label: int):
         '''
@@ -251,7 +255,7 @@ class BEVGenerator:
         pcd_labels = pcd.select_by_index(mask.nonzero()[0])
         return pcd_labels
 
-    def get_class_plane(self,pcd: o3d.t.geometry.PointCloud, class_label: int):
+    def get_class_plane(self,pcd: o3d.t.geometry.PointCloud, class_label: int) -> Tuple[np.ndarray, np.ndarray]:
         '''
         Get the inliers / normal vector for the labelled pointcloud
         '''
@@ -335,21 +339,12 @@ class BEVGenerator:
         '''
         Tilt rectification for the input pointcloud
         '''
-        R = self.compute_tilt_matrix(pcd_input)
+        # R = self.compute_tilt_matrix(pcd_input)
+        R, old_normal = self.compute_tilt_matrix(pcd_input)
+        
         self.R = R
-        # yaw, pitch, roll = RotationUtils.rotation_matrix_to_ypr(R)
-
-        # self.logger.error(f"=================================")      
-        # self.logger.error(f"yaw: {yaw:.2f} degrees, pitch: {pitch:.2f} degrees, roll: {roll:.2f} degrees")
-        # self.logger.error(f"=================================\n")
-
-        # R_ = RotationUtils.ypr_to_rotation_matrix(yaw, pitch, roll)
-        # ax_x_, ax_y_, ax_z_ = RotationUtils.rotation_matrix_to_axis_angles(R_)
-
-        # self.logger.info(f"=================================")      
-        # self.logger.info(f"ax_x_: {ax_x_:.2f} degrees, ax_y_: {ax_y_:.2f} degrees, ax_z_: {ax_z_:.2f} degrees")
-        # self.logger.info(f"=================================\n")
-
+        self.old_normal = old_normal
+        
         # [before tilt rectification]
         # angle made by the normal vector with the [x-axis, y-axis, z-axis]
         axis_x, axis_y, axis_z = RotationUtils.rotation_matrix_to_axis_angles(R)
@@ -360,24 +355,13 @@ class BEVGenerator:
                         " with the [x-axis, y-axis, z-axis] respectively!")
         self.logger.info(f"=================================\n")
 
-        # exit(1)
-
-        # sanity check
-        normal, _ = self.get_class_plane(pcd_input, self.LABELS["NAVIGABLE_SPACE"]["id"])
         
-        # self.logger.info(f"=================================")      
-        # self.logger.info(f"[BEFORE] normal.shape: {normal.shape}")
-        # self.logger.info(f"=================================\n")
-        
-        normal_ = np.dot(normal, R.T)
-        
-        # self.logger.warning(f"=================================")      
-        # self.logger.warning(f"[AFTER] normal_.shape: {normal_.shape}")
-        # self.logger.warning(f"=================================\n")
+        new_normal = np.dot(self.old_normal, R.T)
+        self.new_normal = new_normal
 
         # [after tilt rectification]
         # angle made by the normal vector with the [x-axis, y-axis, z-axis]
-        angles = self.axis_angles(normal_)
+        angles = self.axis_angles(self.new_normal)
         
         self.logger.warning(f"=================================")    
         self.logger.warning(f"AFTER TILT RECTIFICATION...")
@@ -398,6 +382,13 @@ class BEVGenerator:
         pcd_corrected.rotate(R, center=(0, 0, 0))
         return pcd_corrected
     
+    def get_normal_alignment(self):
+        '''
+        Get the angle between the new normal and the y-axis
+        '''
+        angles = self.axis_angles(self.new_normal)
+        return angles[1]
+
     def project_to_ground_plane(
         self, 
         pcd_navigable: o3d.t.geometry.PointCloud, 

@@ -5,11 +5,11 @@ import cv2
 import os
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import random
+import numpy as np
 
 from bev_generator import BEVGenerator
 from logger import get_logger
-import numpy as np
 
 
 logger = get_logger("debug")
@@ -45,44 +45,26 @@ def project_pcd_to_camera(pcd_input, camera_matrix, image_size, rvec=None, tvec=
     return img
 
 
-def create_scatter_plot(points, labels, figsize=(8, 8)):
+def plot_segmentation_classes(mask: np.ndarray, path: str, title: str) -> None:
     """
-    Create a scatter plot of points colored by labels
-    
-    Args:
-        points: Nx3 numpy array of point positions
-        labels: N numpy array of point labels
-        figsize: tuple of figure dimensions
-    
-    Returns:
-        numpy array of rendered plot image
+    Reads a single channel segmentation mask and plots (x,y) coordinates of each unique class.
     """
-    # Create matplotlib figure
-    fig = plt.figure(figsize=figsize)
-    canvas = FigureCanvas(fig)
-    ax = fig.add_subplot(111)
+    unique_classes = np.unique(mask)
     
-    # Plot points with different colors based on labels
-    unique_labels = np.unique(labels)
-    for label in unique_labels:
-        mask = (labels == label).flatten()
-        ax.scatter(points[mask, 0], points[mask, 1], 
-                  label=f'Label {label}', 
-                  alpha=0.6, 
-                  s=1)
+    plt.figure(figsize=(10, 6))
     
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.legend()
-    ax.grid(True)
+    for class_id in unique_classes:
+        y_coords, x_coords = np.where(mask == class_id)        
+        plt.scatter(x_coords, y_coords, label=f'Class {class_id}', alpha=0.5)
     
-    # Convert matplotlib figure to numpy array
-    canvas.draw()
-    plot_image = np.frombuffer(canvas.tostring_rgb(), dtype=np.uint8)
-    plot_image = plot_image.reshape(canvas.get_width_height()[::-1] + (3,))
-    
-    plt.close(fig)  # Clean up matplotlib figure
-    return plot_image
+    plt.title(title)
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+    plt.legend()
+    # plt.show() # show the plot
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    plt.savefig(path)  # save plot to disk
+    plt.close()  # close the plot to free memory
 
 
 if __name__ == "__main__":  
@@ -110,6 +92,8 @@ if __name__ == "__main__":
     
     total_count = len(pcd_files)
     
+    random.shuffle(pcd_files)
+    
     for pcd_path in tqdm(pcd_files, desc="Processing point clouds"):
         try:
             pcd_input = o3d.t.io.read_point_cloud(pcd_path)
@@ -123,33 +107,22 @@ if __name__ == "__main__":
             logger.info(f"================================================")
             logger.info(f"pcd_path: {pcd_path}")
             logger.info(f"================================================\n")
-            
-            _ , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+            seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
                                                             nx = nx_, nz = nz_, 
                                                             bb = crop_bb)
             
-            # Create scatter plot
-            points = pcd_input.point['positions'].numpy()
-            labels = pcd_input.point['label'].numpy()
-            scatter_plot = create_scatter_plot(points, labels)
             
-            # Display scatter plot
-            cv2.imshow("Point Cloud Scatter Plot", scatter_plot)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            angle_y = bev_generator.get_normal_alignment()
             
-            # Save scatter plot
             output_path = pcd_path.replace(pcd_dir, output_seg_masks_dir)
             output_path = output_path.replace("left-segmented-labelled.ply", "scatter.png")
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            cv2.imwrite(output_path, scatter_plot)
+            
+            plot_segmentation_classes(seg_mask_mono, output_path, title=f"angle_y => {angle_y:.2f} degrees")
 
+        
         except Exception as e:
             logger.error(f"Error processing {pcd_path}: {e}")
         
-        # # Also save original seg mask
-        # seg_mask_path = output_path.replace("combined.png", "seg-mask-rgb.png")
-        # cv2.imwrite(seg_mask_path, seg_mask_rgb)
         
     # ================================================
     # CASE 7: testing BEVGenerator

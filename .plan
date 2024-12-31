@@ -160,3 +160,6 @@ evaluation infrastructure
 - use repomix with o1 / gemini-1206 / sonnet 3.5
 - verify number of frames in z[0-5] with z[2-7]
 - clean up compute_tilt_matrix
+- check z-min for each GT-seg-masks [for void space calculations]
+- verify case ground plane normal alignment with -ve y-axis case
+- improve ground plane alignment with cam y-axis
