@@ -37,11 +37,6 @@ def project_pcd_to_camera(pcd_input, camera_matrix, image_size, rvec=None, tvec=
             color_bgr = (int(color[2]), int(color[1]), int(color[0]))
             cv2.circle(img, (x, y), 3, color_bgr, -1)
     
-    # cv2.imshow("Projected Points", img)
-    # while True:
-    #     if cv2.waitKey(1) & 0xFF == ord('q'):
-    #         break
-    # cv2.destroyAllWindows()
     return img
 
 
@@ -97,27 +92,36 @@ if __name__ == "__main__":
     for pcd_path in tqdm(pcd_files, desc="Processing point clouds"):
         try:
             pcd_input = o3d.t.io.read_point_cloud(pcd_path)
-            # bev_generator.tilt_rectification(pcd_input)
-            # success_count += 1
             
-            crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
-            nx_ = 256
-            nz_ = 256
-            
+            x_values = pcd_input.point['positions'][:, 0].numpy()
+            y_values = pcd_input.point['positions'][:, 1].numpy()
+            z_values = pcd_input.point['positions'][:, 2].numpy()
+                        
             logger.info(f"================================================")
             logger.info(f"pcd_path: {pcd_path}")
+            logger.info(f"Range of x values: {x_values.min()} to {x_values.max()}")
+            logger.info(f"Range of y values: {y_values.min()} to {y_values.max()}")
+            logger.info(f"Range of z values: {z_values.min()} to {z_values.max()}")
             logger.info(f"================================================\n")
-            seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
-                                                            nx = nx_, nz = nz_, 
-                                                            bb = crop_bb)
+
+            # crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
+            # nx_ = 256
+            # nz_ = 256
+            
+            # logger.info(f"================================================")
+            # logger.info(f"pcd_path: {pcd_path}")
+            # logger.info(f"================================================\n")
+            # seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+            #                                                 nx = nx_, nz = nz_, 
+            #                                                 bb = crop_bb)
             
             
-            angle_y = bev_generator.get_normal_alignment()
+            # angle_y = bev_generator.get_normal_alignment()
             
-            output_path = pcd_path.replace(pcd_dir, output_seg_masks_dir)
-            output_path = output_path.replace("left-segmented-labelled.ply", "scatter.png")
+            # output_path = pcd_path.replace(pcd_dir, output_seg_masks_dir)
+            # output_path = output_path.replace("left-segmented-labelled.ply", "scatter.png")
             
-            plot_segmentation_classes(seg_mask_mono, output_path, title=f"angle_y => {angle_y:.2f} degrees")
+            # plot_segmentation_classes(seg_mask_mono, output_path, title=f"angle_y => {angle_y:.2f} degrees")
 
         
         except Exception as e:

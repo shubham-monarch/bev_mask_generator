@@ -151,7 +151,7 @@ evaluation infrastructure
 - fix horizonal rotation in GT-seg-masks 
 - fix slanting of pole lines \ uneven vine pole horizontal separation
 - fix camera extrinsics calculations
-- review tilt correction --> axis angles calculations 
++ review tilt correction --> axis angles calculations 
 - start occlusion map pipeline
 - add static methods in bev-generator
 - fill ground points in GT-seg-masks
@@ -162,4 +162,8 @@ evaluation infrastructure
 - clean up compute_tilt_matrix
 - check z-min for each GT-seg-masks [for void space calculations]
 - verify case ground plane normal alignment with -ve y-axis case
-- improve ground plane alignment with cam y-axis
+- improve ground plane alignment with cam y-axis\
+- horizontal tilt / swaying could be because of seg-mask generation bug
+- visualize the complete mask to see the tilt issue
+- check the x/y/z-range of non-void points in each segmented pcd
+- visualize the bev-pcd before collapsing to z=0
