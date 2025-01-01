@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import random
 import numpy as np
 import yaml
+import shutil
 
 from bev_generator import BEVGenerator
 from logger import get_logger
@@ -149,10 +150,16 @@ if __name__ == "__main__":
     # ================================================
 
     pcd_dir = f"debug/frames-2"
-    # seg_masks_dir = f"debug/seg-masks-2"
-    seg_masks_dir = f"debug/seg-masks-2/seg-masks"
+    
+    seg_masks_dir = f"debug/2/seg-masks"
+    rectified_pcd_dir = f"debug/2/rectified-pcd"
+    left_img_dir = f"debug/2/left-imgs"
+    right_img_dir = f"debug/2/right-imgs"
     
     os.makedirs(seg_masks_dir, exist_ok=True)
+    os.makedirs(rectified_pcd_dir, exist_ok=True)
+    os.makedirs(left_img_dir, exist_ok=True)
+    os.makedirs(right_img_dir, exist_ok=True)
     
     success_count = 0
     total_count = 0
@@ -174,18 +181,32 @@ if __name__ == "__main__":
         try:
             pcd_input = o3d.t.io.read_point_cloud(pcd_path)
             
+            # saving left-imgs
+            img_dir = os.path.dirname(pcd_path)
+            left_src = os.path.join(img_dir, "left.jpg")
+            right_src = os.path.join(img_dir, "right.jpg")
 
-            crop_bb = {'x_min': -10, 'x_max': 10, 'z_min': 0, 'z_max': 20}
+            left_dest = os.path.join(left_img_dir, f"left-img-{idx}.jpg")
+            right_dest = os.path.join(right_img_dir, f"right-img-{idx}.jpg")
 
+            shutil.copy(left_src, left_dest)
+            shutil.copy(right_src, right_dest)
+
+            # saving rectified pcd
+            pcd_rectified = bev_generator.tilt_rectification(pcd_input)
+            output_path = os.path.join(rectified_pcd_dir, f"rectified-pcd-{idx}.ply")
+            o3d.t.io.write_point_cloud(output_path, pcd_rectified)
+
+            # # generating GT-seg-mask
+            crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
             seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
                                                                           nx = 256, nz = 256, 
                                                                           bb = crop_bb)
-            
             seg_mask_mono = np.flip(seg_mask_mono, axis=0)
             
+            # # saving GT-seg-mask
             output_path = os.path.join(seg_masks_dir, f"seg-mask-{idx}.png")
             plot_segmentation_classes(seg_mask_mono, output_path)
-            # break
             
         except Exception as e:
             logger.error(f"Error processing {pcd_path}: {e}")

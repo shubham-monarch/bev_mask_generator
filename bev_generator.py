@@ -363,17 +363,15 @@ class BEVGenerator:
         # angle made by the normal vector with the [x-axis, y-axis, z-axis]
         angles = self.axis_angles(self.new_normal)
         
-        self.logger.info(f"=================================")    
-        self.logger.info(f"AFTER TILT RECTIFICATION...")
-        self.logger.info(f"Ground plane normal makes [{angles[0]:.2f},{angles[1]:.2f},{angles[2]:.2f}] degrees"
+        self.logger.warning(f"=================================")    
+        self.logger.warning(f"AFTER TILT RECTIFICATION...")
+        self.logger.warning(f"Ground plane normal makes [{angles[0]:.2f},{angles[1]:.2f},{angles[2]:.2f}] degrees"
                             " with the [x-axis, y-axis, z-axis] respectively!")
-        self.logger.info(f"=================================\n")
+        self.logger.warning(f"=================================\n")
     
-        # # angle between normal and y-axis should be close to 0 / 180 degrees
-        # assert np.isclose(angles[1], 0, atol=0.01) or np.isclose(angles[1], 180, atol=0.1), \
-        #     f"Error: angles_transformed[1] is {angles[1]}"\
-        #     "but it should be close to 0 or 180 degrees (±0.1°)."\
-        #     "Please check the tilt correction!"
+        # angle between normal and y-axis should be close to 0 degrees
+        assert np.isclose(angles[1], 0, atol=1e-10), f"Error: angles_transformed[1] is {angles[1]}"\
+            "but should be close to 0 degrees. Check tilt correction!"
 
 
         pcd_corrected = pcd_input.clone()

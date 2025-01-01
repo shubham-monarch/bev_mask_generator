@@ -148,32 +148,33 @@ evaluation infrastructure
 
 + add as submodule to stereo-occ
 - refactoring [scripts, .gitkeep, bash]
-- fix horizonal rotation in GT-seg-masks 
-- fix slanting of pole lines \ uneven vine pole horizontal separation
++ fix horizonal rotation in GT-seg-masks 
++ fix slanting of pole lines \ uneven vine pole horizontal separation
 - fix camera extrinsics calculations
 + review tilt correction --> axis angles calculations 
 - start occlusion map pipeline
 - add static methods in bev-generator
 - fill ground points in GT-seg-masks
-- tighten compute_tilt_matrix threshold
++ tighten compute_tilt_matrix threshold
 * log global success rate for compute_tilt_matrix
 - add comments for all the functions
 - use repomix with o1 / gemini-1206 / sonnet 3.5
 - verify number of frames in z[0-5] with z[2-7]
-- clean up compute_tilt_matrix
++ clean up compute_tilt_matrix
 - check z-min for each GT-seg-masks [for void space calculations]
-- verify case ground plane normal alignment with -ve y-axis case
+* verify case ground plane normal alignment with -ve y-axis case
 + improve ground plane alignment with cam y-axis\
-- horizontal tilt / swaying could be because of seg-mask generation bug
-- visualize the complete mask to see the tilt issue
++ horizontal tilt / swaying could be because of seg-mask generation bug
++ visualize the complete mask to see the tilt issue
 - check the x/y/z-range of non-void points in each segmented pcd
 - visualize the bev-pcd before collapsing to z=0
 
-- check if dz is constant across subsequent frames
+* check if dz is constant across subsequent frames
 + why is z becoming more negative across frames?
 - check if GT-seg-masks being passed to sbevnet is flipped? 
-- GT-seg-mask is swinging across frames
-- check if GT-seg-masks swings are constant feature across multiple svo segments
++ GT-seg-mask is swinging across frames
++ check if GT-seg-masks swings are constant feature across multiple svo segments
 - automate above testing
-- verify RJM vinerow width
++ verify RJM vinerow width 
++ check RJM / gallo width across multiple svo frames
 - filter out GT-seg-masks with z-min > 0
