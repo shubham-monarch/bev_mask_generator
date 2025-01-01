@@ -174,5 +174,6 @@ evaluation infrastructure
 - check if GT-seg-masks being passed to sbevnet is flipped? 
 - GT-seg-mask is swinging across frames
 - check if GT-seg-masks swings are constant feature across multiple svo segments
+- automate above testing
 - verify RJM vinerow width
 - filter out GT-seg-masks with z-min > 0
