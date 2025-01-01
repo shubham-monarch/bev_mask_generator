@@ -7,6 +7,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import random
 import numpy as np
+import yaml
 
 from bev_generator import BEVGenerator
 from logger import get_logger
@@ -40,7 +41,7 @@ def project_pcd_to_camera(pcd_input, camera_matrix, image_size, rvec=None, tvec=
     return img
 
 
-def plot_segmentation_classes(mask: np.ndarray, path: str, title: str) -> None:
+def plot_segmentation_classes(mask: np.ndarray, path: str = None, title: str = None) -> None:
     """
     Reads a single channel segmentation mask and plots (x,y) coordinates of each unique class.
     """
@@ -48,35 +49,114 @@ def plot_segmentation_classes(mask: np.ndarray, path: str, title: str) -> None:
     
     plt.figure(figsize=(10, 6))
     
-    for class_id in unique_classes:
-        y_coords, x_coords = np.where(mask == class_id)        
-        plt.scatter(x_coords, y_coords, label=f'Class {class_id}', alpha=0.5)
+    # Load color map from config
+    with open("config/Mavis.yaml", 'r') as f:
+        config = yaml.safe_load(f)
+    color_map = config['color_map']
     
-    plt.title(title)
+    for class_id in unique_classes:
+        y_coords, x_coords = np.where(mask == class_id)
+        
+        # Get color for the class, default to black if not found
+        color = color_map.get(class_id, [0, 0, 0])
+        color = [c/255 for c in color[::-1]] # Convert BGR to RGB and normalize
+        
+        plt.scatter(x_coords, y_coords, label=f'Class {class_id}', color=color, alpha=0.5)
+    
+    if title:
+        plt.title(title)
     plt.xlabel('X Coordinate')
     plt.ylabel('Y Coordinate')
     plt.legend()
-    # plt.show() # show the plot
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    plt.savefig(path)  # save plot to disk
+    if path is not None:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        plt.savefig(path)  # save plot to disk
+    else:
+        plt.show()
     plt.close()  # close the plot to free memory
 
 
 if __name__ == "__main__":  
      
+    
+     
+
+    # ================================================
+    # CASE 9: testing dz consistency across consecutive rectified frames
+    # ================================================
+
+    # pcd_dir = f"debug/frames-2"
+    # output_seg_masks_dir = f"debug/seg-masks-2"
+
+    # os.makedirs(output_seg_masks_dir, exist_ok=True)
+    
+    # success_count = 0
+    # total_count = 0
+
+    # bev_generator = BEVGenerator()
+    
+    # pcd_files = []
+    # for root, _, files in os.walk(pcd_dir):
+    #     for file in files:
+    #         if file == "left-segmented-labelled.ply":
+    #             pcd_files.append(os.path.join(root, file))
+    
+    # total_count = len(pcd_files)
+    
+    # pcd_files.sort()
+    
+    # rectified_pcd_files = []
+
+    # for pcd_path in tqdm(pcd_files, desc="Processing point clouds"):
+    #     try:
+    #         pcd_input = o3d.t.io.read_point_cloud(pcd_path)
+            
+    #         logger.warning(f"================================================")
+    #         logger.warning(f"pcd_path: {pcd_path}")
+    #         logger.warning(f"================================================\n")
+
+    #         pcd_rectified = bev_generator.tilt_rectification(pcd_input)
+    #         rectified_pcd_files.append(pcd_rectified)
+
+    #         # original pointcloud
+    #         x_i = pcd_input.point['positions'][:, 0].numpy()
+    #         y_i = pcd_input.point['positions'][:, 1].numpy()
+    #         z_i = pcd_input.point['positions'][:, 2].numpy()
+
+    #         # rectified pointcloud
+    #         x_r = pcd_rectified.point['positions'][:, 0].numpy()
+    #         y_r = pcd_rectified.point['positions'][:, 1].numpy()
+    #         z_r = pcd_rectified.point['positions'][:, 2].numpy()
+            
+    #         # logger.warning(f"================================================")
+    #         # logger.warning(f"x_i ==> [{x_i.min():.2f}, {x_i.max():.2f}]")
+    #         # logger.warning(f"y_i ==> [{y_i.min():.2f}, {y_i.max():.2f}]")
+    #         # logger.warning(f"z_i ==> [{z_i.min():.2f}, {z_i.max():.2f}]")
+    #         # logger.warning(f"================================================\n")
+            
+
+    #         logger.info(f"================================================")
+    #         logger.info(f"x_r ==> [{x_r.min():.2f}, {x_r.max():.2f}] [mean: {(x_r.min() + x_r.max()) / 2:.2f}]")
+    #         logger.info(f"y_r ==> [{y_r.min():.2f}, {y_r.max():.2f}] [mean: {(y_r.min() + y_r.max()) / 2:.2f}]")
+    #         logger.info(f"z_r ==> [{z_r.min():.2f}, {z_r.max():.2f}] [mean: {(z_r.min() + z_r.max()) / 2:.2f}]")
+    #         logger.info(f"================================================\n")
+
+    #     except Exception as e:
+    #         logger.error(f"Error processing {pcd_path}: {e}")
 
     # ================================================
     # CASE 8: testing compute_tilt_matrix success-rate
     # ================================================
 
     pcd_dir = f"debug/frames-2"
-    output_seg_masks_dir = f"debug/seg-masks-2"
-
-    os.makedirs(output_seg_masks_dir, exist_ok=True)
+    # seg_masks_dir = f"debug/seg-masks-2"
+    seg_masks_dir = f"debug/seg-masks-2/seg-masks"
+    
+    os.makedirs(seg_masks_dir, exist_ok=True)
     
     success_count = 0
     total_count = 0
-
+    
     bev_generator = BEVGenerator()
     
     pcd_files = []
@@ -87,47 +167,39 @@ if __name__ == "__main__":
     
     total_count = len(pcd_files)
     
-    random.shuffle(pcd_files)
-    
-    for pcd_path in tqdm(pcd_files, desc="Processing point clouds"):
+    pcd_files.sort()
+    bev_generator = BEVGenerator()
+
+    for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
         try:
             pcd_input = o3d.t.io.read_point_cloud(pcd_path)
             
-            x_values = pcd_input.point['positions'][:, 0].numpy()
-            y_values = pcd_input.point['positions'][:, 1].numpy()
-            z_values = pcd_input.point['positions'][:, 2].numpy()
-                        
-            logger.info(f"================================================")
-            logger.info(f"pcd_path: {pcd_path}")
-            logger.info(f"Range of x values: {x_values.min()} to {x_values.max()}")
-            logger.info(f"Range of y values: {y_values.min()} to {y_values.max()}")
-            logger.info(f"Range of z values: {z_values.min()} to {z_values.max()}")
-            logger.info(f"================================================\n")
 
-            # crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
-            # nx_ = 256
-            # nz_ = 256
-            
-            # logger.info(f"================================================")
-            # logger.info(f"pcd_path: {pcd_path}")
-            # logger.info(f"================================================\n")
-            # seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
-            #                                                 nx = nx_, nz = nz_, 
-            #                                                 bb = crop_bb)
-            
-            
-            # angle_y = bev_generator.get_normal_alignment()
-            
-            # output_path = pcd_path.replace(pcd_dir, output_seg_masks_dir)
-            # output_path = output_path.replace("left-segmented-labelled.ply", "scatter.png")
-            
-            # plot_segmentation_classes(seg_mask_mono, output_path, title=f"angle_y => {angle_y:.2f} degrees")
+            crop_bb = {'x_min': -10, 'x_max': 10, 'z_min': 0, 'z_max': 20}
 
-        
+            seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+                                                                          nx = 256, nz = 256, 
+                                                                          bb = crop_bb)
+            
+            seg_mask_mono = np.flip(seg_mask_mono, axis=0)
+            
+            output_path = os.path.join(seg_masks_dir, f"seg-mask-{idx}.png")
+            plot_segmentation_classes(seg_mask_mono, output_path)
+            # break
+            
         except Exception as e:
             logger.error(f"Error processing {pcd_path}: {e}")
-        
-        
+
+    # pcd_input = o3d.t.io.read_point_cloud(pcd_files[-1])
+    # crop_bb = {'x_min': -10, 'x_max': 10, 'z_min': 0, 'z_max': 20}
+    # seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+    #                                                                 nx = 256, nz = 256, 
+    #                                                                 bb = crop_bb)
+    
+    # plot_segmentation_classes(seg_mask_mono)
+
+
+
     # ================================================
     # CASE 7: testing BEVGenerator
     # ================================================
