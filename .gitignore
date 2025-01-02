@@ -10,6 +10,8 @@ archive-svo-files/*
 svo-archives/* 
 **/svo_output/
 !svo_output/
+tmp-files/*
+
 
 # pipeline-folders
 output/*

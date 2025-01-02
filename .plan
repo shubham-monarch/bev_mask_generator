@@ -179,6 +179,8 @@ evaluation infrastructure
 + check RJM / gallo width across multiple svo frames
 - filter out GT-seg-masks with z-min > 0
 - check occ-mask coverage
-- start occ mask pipeline
++ start occ mask pipeline
 - start camera-ext pipeline
-- fix tmp files in data-generator-s3
++ fix tmp files in data-generator-s3
+- fill void with ground
++ update check index logic in data-generator-s3

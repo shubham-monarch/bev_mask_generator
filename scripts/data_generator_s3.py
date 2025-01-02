@@ -37,22 +37,8 @@ class JSONIndex:
     def add_file(self, file_uri: str):
         ''' Add a new file to the index '''
         
-        if file_uri not in self.index:
+        if not self.has_file(file_uri):
             self.index[file_uri] = {}
-        
-            # set all keys to false
-            for key in self.keys:
-                self.index[file_uri][key] = False
-
-
-    def update_file(self, file_uri: str, key: str):
-        ''' Update an existing file in the index '''
-        
-        assert key in self.keys, f"Key {key} not found in index"
-        assert file_uri in self.index, f"File {file_uri} not found in index"
-
-        self.index[file_uri][key] = True
-        
 
     def save_index(self):
         '''Save index as json to disk'''
@@ -60,17 +46,11 @@ class JSONIndex:
         with open(self.index_path, 'w') as f:
             json.dump(self.index, f, indent=4)
 
-    def check_index(self, file_uri: str, key: str) -> bool:
-        ''' Check if the index has the given file and key '''
+    def has_file(self, file_uri: str) -> bool:
+        ''' Check if the index has the given file '''
         
-        if file_uri not in self.index:
-            return False
-        
-        if key not in self.index[file_uri]:
-            return False
-        
-        return self.index[file_uri][key]
-    
+        return file_uri in self.index
+
 
 class LeafFolder:
     def __init__(self, src_URI: str, dest_URI: str,
@@ -108,10 +88,13 @@ class LeafFolder:
         self.logger.warning(f"=======================")
         self.logger.warning(f"src_URI: {self.src_URI}")
         self.logger.warning(f"dest_URI: {self.dest_URI}")
-        self.logger.warning(f"color_map: {self.color_map}")
-        self.logger.warning(f"crop_bb: {self.crop_bb}")
-        self.logger.warning(f"(nx, nz): ({self.nx}, {self.nz})")
         self.logger.warning(f"=======================\n")
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"color_map: {self.color_map}")
+        self.logger.info(f"crop_bb: {self.crop_bb}")
+        self.logger.info(f"(nx, nz): ({self.nx}, {self.nz})")
+        self.logger.info(f"=======================\n")
 
         self.s3 = boto3.client('s3')    
         self.tmp_folder = "tmp-files"
@@ -172,115 +155,109 @@ class LeafFolder:
     def process_folder(self):
         ''' Process a folder and generate BEV dataset '''
         
+        if self.INDEX.has_file(self.src_URI):
+            self.logger.error(f"=======================")
+            self.logger.error(f"Skipping folder {self.src_URI}...")
+            self.logger.error(f"=======================\n")
+            return
+
+        # ==================
+        # 1. download left-segmented-labelled.ply
+        # ==================
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #1]: downloading left-segmented-labelled.ply...")
+        self.logger.info(f"=======================\n")
+
+        pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
+
+        pcd_path = self.download_file(pcd_URI)
+
+        # ==================
+        # 2. generate mono / RGB segmentation masks
+        # ==================
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #2]: generating mono / RGB segmentation masks...")
+        self.logger.info(f"=======================\n")
+
+        pcd = o3d.t.io.read_point_cloud(pcd_path)
+        
+        seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
+                                                                        nx=self.nx, nz=self.nz,
+                                                                        bb=self.crop_bb,
+                                                                        yaml_path=self.color_map)
+
+        # ==================
+        # 3. upload mono / RGB segmentation masks
+        # ==================
+    
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #3]: uploading mono / RGB segmentation masks...")
+        self.logger.info(f"=======================\n")
+
+        self.upload_seg_mask(seg_mask_mono, os.path.join(self.dest_URI, "seg-mask-mono.png"))
+        self.upload_seg_mask(seg_mask_rgb, os.path.join(self.dest_URI, "seg-mask-rgb.png"))
+        
+            
+        # ==================
+        # 4. process left / right images
+        # ==================
+    
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #4]: resizing + uploading left / right image...")
+        self.logger.info(f"=======================\n")
+
+        # download 1920x1080 
+        imgL_uri = os.path.join(self.src_URI, "left.jpg")
+        imgL_path = self.download_file(imgL_uri)
+        
+        imgR_uri = os.path.join(self.src_URI, "right.jpg")
+        imgR_path = self.download_file(imgR_uri)
+        
+        # resize to 640x480
+        imgL = cv2.imread(imgL_path)
+        imgR = cv2.imread(imgR_path)
+        
+        imgL_resized = cv2.resize(imgL, (640, 480))
+        imgR_resized = cv2.resize(imgR, (640, 480))
+        
+        # save to tmp-folder
+        imgL_path = os.path.join(self.tmp_folder, "left-resized.jpg")
+        imgR_path = os.path.join(self.tmp_folder, "right-resized.jpg")
+        
+        cv2.imwrite(imgL_path, imgL_resized)
+        cv2.imwrite(imgR_path, imgR_resized)
+        
+        # upload resized image 
+        self.upload_file(imgL_path, os.path.join(self.dest_URI, "left.jpg"))
+        self.upload_file(imgR_path, os.path.join(self.dest_URI, "right.jpg"))
+
+
+        # =================
+        # 5. upload camera extrinsics
+        # =================
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #5]: uploading camera extrinsics...")
+        self.logger.info(f"=======================\n")
+
+        cam_extrinsics = self.bev_generator.get_updated_camera_extrinsics(pcd)
+        
+        # save to tmp-folder
+        cam_extrinsics_path = os.path.join(self.tmp_folder, "cam-extrinsics.npy")
+        np.save(cam_extrinsics_path, cam_extrinsics)
+        
+        # upload to S3
+        self.upload_file(cam_extrinsics_path, os.path.join(self.dest_URI, "cam-extrinsics.npy"))
+
+        # =================
+        # 6. save index
+        # =================
         self.INDEX.add_file(self.src_URI)
-        
-        # check index
-        found_seg_mask_mono = self.INDEX.check_index(self.src_URI, 'seg-mask-mono')
-        found_seg_mask_rgb = self.INDEX.check_index(self.src_URI, 'seg-mask-rgb')
-        
-        if not found_seg_mask_mono or not found_seg_mask_rgb:
-
-            # ==================
-            # 1. download left-segmented-labelled.ply
-            # ==================
-
-            self.logger.info(f"=======================")
-            self.logger.info(f"[STEP #1]: downloading left-segmented-labelled.ply...")
-            self.logger.info(f"=======================\n")
-
-            pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
-
-            pcd_path = self.download_file(pcd_URI)
-
-            # ==================
-            # 2. generate mono / RGB segmentation masks
-            # ==================
-
-            self.logger.info(f"=======================")
-            self.logger.info(f"[STEP #2]: generating mono / RGB segmentation masks...")
-            self.logger.info(f"=======================\n")
-
-            pcd = o3d.t.io.read_point_cloud(pcd_path)
-            
-            seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
-                                                                            nx=self.nx, nz=self.nz,
-                                                                            bb=self.crop_bb,
-                                                                            yaml_path=self.color_map)
-
-            # ==================
-            # 3. upload mono / RGB segmentation masks
-            # ==================
-        
-            self.logger.info(f"=======================")
-            self.logger.info(f"[STEP #3]: uploading mono / RGB segmentation masks...")
-            self.logger.info(f"=======================\n")
-
-            self.upload_seg_mask(seg_mask_mono, os.path.join(self.dest_URI, "seg-mask-mono.png"))
-            self.upload_seg_mask(seg_mask_rgb, os.path.join(self.dest_URI, "seg-mask-rgb.png"))
-            
-            # update index
-            self.INDEX.update_file(self.src_URI, 'seg-mask-mono')
-            self.INDEX.update_file(self.src_URI, 'seg-mask-rgb')
-
-        else: 
-            self.logger.error(f"=======================")
-            self.logger.error(f"Skipping steps 1,2 and 3!")
-            self.logger.error(f"=======================\n")
-        
-        
-        # check index
-        found_left_img = self.INDEX.check_index(self.src_URI, 'left-img')
-        found_right_img = self.INDEX.check_index(self.src_URI, 'right-img')
-
-        if not found_left_img or not found_right_img:
-            
-            # ==================
-            # 4. process left / right images
-            # ==================
-        
-            self.logger.info(f"=======================")
-            self.logger.info(f"[STEP #4]: resizing + uploading left / right image...")
-            self.logger.info(f"=======================\n")
-
-            # download 1920x1080 
-            imgL_uri = os.path.join(self.src_URI, "left.jpg")
-            imgL_path = self.download_file(imgL_uri)
-            
-            imgR_uri = os.path.join(self.src_URI, "right.jpg")
-            imgR_path = self.download_file(imgR_uri)
-            
-            # resize to 640x480
-            imgL = cv2.imread(imgL_path)
-            imgR = cv2.imread(imgR_path)
-            
-            imgL_resized = cv2.resize(imgL, (640, 480))
-            imgR_resized = cv2.resize(imgR, (640, 480))
-            
-            # save to tmp-folder
-            imgL_path = os.path.join(self.tmp_folder, "left-resized.jpg")
-            imgR_path = os.path.join(self.tmp_folder, "right-resized.jpg")
-            
-            cv2.imwrite(imgL_path, imgL_resized)
-            cv2.imwrite(imgR_path, imgR_resized)
-            
-            # upload resized image 
-            self.upload_file(imgL_path, os.path.join(self.dest_URI, "left.jpg"))
-            self.upload_file(imgR_path, os.path.join(self.dest_URI, "right.jpg"))
-
-            # update index
-            self.INDEX.update_file(self.src_URI, 'left-img')
-            self.INDEX.update_file(self.src_URI, 'right-img')
-
-        else:
-            self.logger.error(f"=======================")
-            self.logger.error(f"Skipping step 4...")
-            self.logger.error(f"=======================\n")
-
-        # =================
-        # 5. save index
-        # =================
         self.INDEX.save_index()
 
+        
 
 class DataGeneratorS3:
     def __init__(self, src_URIs: List[str] = None, 
