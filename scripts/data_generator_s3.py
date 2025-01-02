@@ -3,14 +3,15 @@
 import boto3
 import os
 import random
-from logger import get_logger
 from typing import List
 from tqdm import tqdm
 import open3d as o3d
 import numpy as np
 import cv2
 import json
-from bev_generator import BEVGenerator
+
+from scripts.logger import get_logger
+from scripts.bev_generator import BEVGenerator
 
 
 class JSONIndex:
@@ -72,7 +73,12 @@ class JSONIndex:
     
 
 class LeafFolder:
-    def __init__(self, src_URI: str, dest_URI: str, index_json: str = None, crop_bb: dict = None):
+    def __init__(self, src_URI: str, dest_URI: str,
+                 index_json: str = None,
+                 crop_bb: dict = None,
+                 color_map: str = None,
+                 nx: int = None,
+                 nz: int = None):
         '''
         :param src_URI: occ-dataset S3 URI
         :param dest_URI: bev-dataset S3 URI
@@ -80,17 +86,31 @@ class LeafFolder:
         '''
         assert index_json is not None, "index_json is required!"
         assert crop_bb is not None, "crop_bb is required!"
-
-        self.logger = get_logger("LeafFolder")
+        assert color_map is not None, "color_map is required!"
+        assert nx is not None, "nx is required!"
+        assert nz is not None, "nz is required!"
+        
+        self.logger = get_logger("leaf-folder")
         
         self.src_URI = src_URI
         self.dest_URI = dest_URI
-
+        
+        # mavis.yaml
+        self.color_map = color_map
+        
+        # crop bounding box
         self.crop_bb = crop_bb
+        
+        # segentation mask dimensions
+        self.nx = nx
+        self.nz = nz
         
         self.logger.warning(f"=======================")
         self.logger.warning(f"src_URI: {self.src_URI}")
         self.logger.warning(f"dest_URI: {self.dest_URI}")
+        self.logger.warning(f"color_map: {self.color_map}")
+        self.logger.warning(f"crop_bb: {self.crop_bb}")
+        self.logger.warning(f"(nx, nz): ({self.nx}, {self.nz})")
         self.logger.warning(f"=======================\n")
 
         self.s3 = boto3.client('s3')    
@@ -182,16 +202,11 @@ class LeafFolder:
 
             pcd = o3d.t.io.read_point_cloud(pcd_path)
             
-            # mask dimensions
-            nx, nz = 256, 256
-
-            # z is depth, x is horizontal
-            crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5}        
-            
             seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
-                                                                            nx=256,nz=256,
-                                                                            bb=self.crop_bb)
-        
+                                                                            nx=self.nx, nz=self.nz,
+                                                                            bb=self.crop_bb,
+                                                                            yaml_path=self.color_map)
+
             # ==================
             # 3. upload mono / RGB segmentation masks
             # ==================
@@ -271,18 +286,38 @@ class DataGeneratorS3:
     def __init__(self, src_URIs: List[str] = None, 
                  dest_folder: str = None, 
                  index_json: str = None,
-                 crop_bb: dict = None):    
-        
+                 color_map: str = None,
+                 crop_bb: dict = None,
+                 nx: int = None,
+                 nz: int = None):    
+
         assert index_json is not None, "index_json is required!"
+        assert color_map is not None, "color_map is required!"
         assert crop_bb is not None, "crop_bb is required!"
-        assert dest_folder == "bev-dataset-2-to-7", "dest_folder must be 'bev-dataset-2-to-7'"
+        assert nx is not None, "nx is required!"
+        assert nz is not None, "nz is required!"
+
+        self.logger = get_logger("data-generator-s3")
         
-        self.logger = get_logger("DataGeneratorS3")
         self.src_URIs = src_URIs
-        self.index_json = index_json
-        self.crop_bb = crop_bb
+        
+        # s3 destination folder
         self.dest_folder = dest_folder
 
+        # mavis.yaml
+        self.color_map = color_map
+        
+        # index.json
+        self.index_json = index_json
+        
+        # crop bounding box
+        self.crop_bb = crop_bb
+        
+        # segmentation mask dimensions
+        self.nx = nx
+        self.nz = nz
+        
+        
     def generate_target_URI(self, src_uri: str, dest_folder:str = None):
         ''' Make leaf-folder path relative to the bev-dataset folder '''
         
@@ -359,7 +394,12 @@ class DataGeneratorS3:
         
         for idx, src_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc="Processing leaf URIs"):    
             target_URI = self.generate_target_URI(src_URI, self.dest_folder)
-            leaf_folder = LeafFolder(src_URI, target_URI, self.index_json, self.crop_bb)
+            
+            leaf_folder = LeafFolder(src_URI, target_URI, 
+                                     self.index_json, 
+                                     self.crop_bb, 
+                                     self.color_map, 
+                                     self.nx, self.nz)
             try:
                 leaf_folder.process_folder()
             except Exception as e:
@@ -379,12 +419,21 @@ if __name__ == "__main__":
     # x is horizontal, z is depth
     crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5.0}
     
+    # mavis.yaml
+    color_map = "config/Mavis.yaml"
+    
+    # segmentation mask dimensions
+    nx_, nz_ = 256, 256
+    
     # json_path = "index-s3/bev-dataset-2-to-7.json"
     json_path = "index-s3/bev-05-cam-extrinsics.json"
+
     data_generator_s3 = DataGeneratorS3(src_URIs=PCD_URIs, 
                                         dest_folder="bev-05-cam-extrinsics",
                                         index_json=json_path, 
-                                        crop_bb=crop_bb)
+                                        color_map=color_map,
+                                        crop_bb=crop_bb,
+                                        nx=nx_, nz=nz_)
     
     data_generator_s3.generate_bev_dataset()
     
