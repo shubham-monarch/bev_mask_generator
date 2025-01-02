@@ -668,7 +668,8 @@ class BEVGenerator:
     def pcd_to_seg_mask(self, 
                              pcd: o3d.t.geometry.PointCloud, 
                              nx: int = None, nz: int = None, 
-                             bb: dict = None) -> Tuple[np.ndarray, np.ndarray]:
+                             bb: dict = None, 
+                             yaml_path: str = None) -> Tuple[np.ndarray, np.ndarray]:
         
         '''Generate mono / rgb segmentation masks from a pointcloud'''
                 
@@ -679,7 +680,7 @@ class BEVGenerator:
         bev_pcd_cropped = crop_pcd(bev_pcd, bb)
 
         seg_mask_mono = self.bev_to_seg_mask_mono(bev_pcd_cropped, nx, nz, bb)
-        seg_mask_rgb = mono_to_rgb_mask(seg_mask_mono)
+        seg_mask_rgb = mono_to_rgb_mask(seg_mask_mono, yaml_path=yaml_path)
 
         return seg_mask_mono, seg_mask_rgb
 

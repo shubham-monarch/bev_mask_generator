@@ -209,7 +209,8 @@ if __name__ == "__main__":
             crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
             seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
                                                                           nx = 256, nz = 256, 
-                                                                          bb = crop_bb)
+                                                                          bb = crop_bb,
+                                                                          yaml_path="config/Mavis.yaml")
             seg_mask_mono = np.flip(seg_mask_mono, axis=0)
             
             # # saving GT-seg-mask

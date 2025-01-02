@@ -47,9 +47,10 @@ def get_label_colors_from_yaml(yaml_path=None):
     return label_colors_bgr, label_colors_rgb
         
 
-def mono_to_rgb_mask(mono_mask: np.ndarray, yaml_path: str = "Mavis.yaml") -> np.ndarray:
+def mono_to_rgb_mask(mono_mask: np.ndarray, yaml_path: str = None) -> np.ndarray:
     """Convert single channel segmentation mask to RGB using label mapping from a YAML file."""
     
+    assert yaml_path is not None, "yaml_path is required!"
     label_colors_bgr, _ = get_label_colors_from_yaml(yaml_path)
     
     H, W = mono_mask.shape
