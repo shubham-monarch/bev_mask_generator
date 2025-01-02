@@ -167,14 +167,18 @@ evaluation infrastructure
 + horizontal tilt / swaying could be because of seg-mask generation bug
 + visualize the complete mask to see the tilt issue
 - check the x/y/z-range of non-void points in each segmented pcd
-- visualize the bev-pcd before collapsing to z=0
+* visualize the bev-pcd before collapsing to z=0
 
 * check if dz is constant across subsequent frames
 + why is z becoming more negative across frames?
 - check if GT-seg-masks being passed to sbevnet is flipped? 
 + GT-seg-mask is swinging across frames
 + check if GT-seg-masks swings are constant feature across multiple svo segments
-- automate above testing
+* automate above testing
 + verify RJM vinerow width 
 + check RJM / gallo width across multiple svo frames
 - filter out GT-seg-masks with z-min > 0
+- check occ-mask coverage
+- start occ mask pipeline
+- start camera-ext pipeline
+- fix tmp files in data-generator-s3

@@ -8,8 +8,8 @@ from scipy.spatial import cKDTree
 from typing import List, Tuple, Optional
 import torch
 
-from helpers import crop_pcd, mono_to_rgb_mask
-from logger import get_logger
+from scripts.helpers import crop_pcd, mono_to_rgb_mask
+from scripts.logger import get_logger
 
 
 class RotationUtils:

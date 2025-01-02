@@ -20,7 +20,7 @@ class JSONIndex:
         
         self.index_path = json_path
         self.index = self.load_index(self.index_path)
-        self.keys = ['seg-mask-mono', 'seg-mask-rgb', 'left-img', 'right-img']
+        self.keys = ['seg-mask-mono', 'seg-mask-rgb', 'left-img', 'right-img', 'cam-extrinsics']
 
     def load_index(self, json_path: str) -> dict:
         ''' Load index.json file from disk '''
@@ -123,8 +123,9 @@ class LeafFolder:
             # self.logger.info(f"file_name: {file_name}")
             # self.logger.info(f"=======================\n")
 
-            os.makedirs("tmp-files", exist_ok=True)
-            tmp_path = os.path.join("tmp-files", file_name)
+            # os.makedirs("tmp-files", exist_ok=True)
+            os.makedirs(self.tmp_folder, exist_ok=True)
+            tmp_path = os.path.join(self.tmp_folder, file_name)
             
             self.s3.download_file(bucket_name, key, tmp_path)
             return tmp_path
@@ -135,8 +136,8 @@ class LeafFolder:
     def upload_seg_mask(self, mask: np.ndarray, mask_uri: str) -> bool:
         """Save mask as PNG and upload to S3"""
         
-        os.makedirs("tmp-masks", exist_ok=True)
-        tmp_path = os.path.join("tmp-masks", "tmp_mask.png")
+        os.makedirs(self.tmp_folder, exist_ok=True)
+        tmp_path = os.path.join(self.tmp_folder, "tmp_mask.png")
         cv2.imwrite(tmp_path, mask)
         
         # upload to S3
@@ -185,7 +186,7 @@ class LeafFolder:
             nx, nz = 256, 256
 
             # z is depth, x is horizontal
-            # crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5}        
+            crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5}        
             
             seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
                                                                             nx=256,nz=256,
@@ -376,11 +377,12 @@ if __name__ == "__main__":
     logger = get_logger("data-generator-s3")
     
     # x is horizontal, z is depth
-    crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 2.0, 'z_max': 7.0}
+    crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5.0}
     
-    json_path = "index-s3/bev-dataset-2-to-7.json"
+    # json_path = "index-s3/bev-dataset-2-to-7.json"
+    json_path = "index-s3/bev-05-cam-extrinsics.json"
     data_generator_s3 = DataGeneratorS3(src_URIs=PCD_URIs, 
-                                        dest_folder="bev-dataset-2-to-7",
+                                        dest_folder="bev-05-cam-extrinsics",
                                         index_json=json_path, 
                                         crop_bb=crop_bb)
     

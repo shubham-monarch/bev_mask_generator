@@ -10,8 +10,8 @@ import numpy as np
 import yaml
 import shutil
 
-from bev_generator import BEVGenerator
-from logger import get_logger
+from scripts.bev_generator import BEVGenerator
+from scripts.logger import get_logger
 
 
 logger = get_logger("debug")
@@ -181,23 +181,31 @@ if __name__ == "__main__":
         try:
             pcd_input = o3d.t.io.read_point_cloud(pcd_path)
             
-            # saving left-imgs
-            img_dir = os.path.dirname(pcd_path)
-            left_src = os.path.join(img_dir, "left.jpg")
-            right_src = os.path.join(img_dir, "right.jpg")
+            # # saving left-imgs
+            # img_dir = os.path.dirname(pcd_path)
+            # left_src = os.path.join(img_dir, "left.jpg")
+            # right_src = os.path.join(img_dir, "right.jpg")
 
-            left_dest = os.path.join(left_img_dir, f"left-img-{idx}.jpg")
-            right_dest = os.path.join(right_img_dir, f"right-img-{idx}.jpg")
+            # left_dest = os.path.join(left_img_dir, f"left-img-{idx}.jpg")
+            # right_dest = os.path.join(right_img_dir, f"right-img-{idx}.jpg")
 
-            shutil.copy(left_src, left_dest)
-            shutil.copy(right_src, right_dest)
+            # shutil.copy(left_src, left_dest)
+            # shutil.copy(right_src, right_dest)
 
             # saving rectified pcd
             pcd_rectified = bev_generator.tilt_rectification(pcd_input)
-            output_path = os.path.join(rectified_pcd_dir, f"rectified-pcd-{idx}.ply")
-            o3d.t.io.write_point_cloud(output_path, pcd_rectified)
+            
+            z_r = pcd_rectified.point['positions'][:, 2].numpy()
+            
+            logger.warning(f"================================================")
+            logger.warning(f"z_r ==> [{z_r.min():.2f}, {z_r.max():.2f}]")
+            logger.warning(f"================================================\n")
+            
 
-            # # generating GT-seg-mask
+            # output_path = os.path.join(rectified_pcd_dir, f"rectified-pcd-{idx}.ply")
+            # o3d.t.io.write_point_cloud(output_path, pcd_rectified)
+
+            # generating GT-seg-mask
             crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
             seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
                                                                           nx = 256, nz = 256, 
@@ -205,8 +213,9 @@ if __name__ == "__main__":
             seg_mask_mono = np.flip(seg_mask_mono, axis=0)
             
             # # saving GT-seg-mask
-            output_path = os.path.join(seg_masks_dir, f"seg-mask-{idx}.png")
-            plot_segmentation_classes(seg_mask_mono, output_path)
+            # output_path = os.path.join(seg_masks_dir, f"seg-mask-{idx}.png")
+            # plot_segmentation_classes(seg_mask_mono, output_path)
+            plot_segmentation_classes(seg_mask_mono)
             
         except Exception as e:
             logger.error(f"Error processing {pcd_path}: {e}")
