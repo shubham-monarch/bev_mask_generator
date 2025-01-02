@@ -35,6 +35,4 @@ build/*
 *.zip
 *.log
 *.pt
-*.gitkeep
-*.pyc
-*.json
+*.gitkee*.pyc
