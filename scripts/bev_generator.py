@@ -161,7 +161,7 @@ class BEVGenerator:
         self.R = None
 
 
-        self.logger = get_logger("bev_generator", level=logging.WARNING)
+        self.logger = get_logger("bev_generator", level=logging.INFO)
         
         # old / rectified ground plane normal
         self.old_normal = None  
@@ -345,9 +345,10 @@ class BEVGenerator:
             cleaned_pcds.append(pcd_cleaned)
         return cleaned_pcds
     
-    def tilt_rectification(self, pcd_input: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
+    def get_tilt_rectified_pcd(self, pcd_input: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
         '''
-        Tilt rectification for the input pointcloud
+        The function aligns the GROUND plane normal to CAMERA y-axis \
+        in the CAMERA frame of reference
         '''
         # R = self.compute_tilt_matrix(pcd_input)
         R, old_normal, ground_inliers = self.compute_tilt_matrix(pcd_input)
@@ -476,14 +477,14 @@ class BEVGenerator:
     def generate_BEV(self, pcd_input: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
         """Generate BEV from segmented pointcloud"""
         
-        pcd_corrected = self.tilt_rectification(pcd_input)
+        pcd_tilt_rectified = self.get_tilt_rectified_pcd(pcd_input)
 
         # filtering unwanted labels => [vegetation, tractor-hood, void, sky]
         valid_labels = np.array([label["id"] for label in self.LABELS.values()])
-        valid_mask = np.isin(pcd_corrected.point['label'].numpy(), valid_labels)
+        valid_mask = np.isin(pcd_tilt_rectified.point['label'].numpy(), valid_labels)
         
-        pcd_filtered = pcd_corrected.select_by_mask(valid_mask.flatten())
-        original_points = len(pcd_corrected.point['positions'])
+        pcd_filtered = pcd_tilt_rectified.select_by_mask(valid_mask.flatten())
+        original_points = len(pcd_tilt_rectified.point['positions'])
         filtered_points = len(pcd_filtered.point['positions'])
         reduction_percentage = ((original_points - filtered_points) / original_points) * 100    
         
