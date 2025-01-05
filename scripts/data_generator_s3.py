@@ -328,7 +328,7 @@ class DataGeneratorS3:
             for page in pages:
                 if 'Contents' not in page:
                     continue
-                    
+                        
                 for obj in page['Contents']:
                     # Get the full path
                     path = obj['Key']
@@ -358,10 +358,8 @@ class DataGeneratorS3:
         return all_leaf_uris
 
     def generate_bev_dataset(self, dest_folder: str = None):
-    # def generate_bev_dataset(self, dest_folder: str = "bev-dataset", crop_bb: dict = None):
         ''' Generate a BEV dataset from the given S3 URI '''
-        
-        
+            
         self.logger.info(f"=======================")
         self.logger.info(f"STARTING BEV-S3-DATASET GENERATION PIPELINE...")
         self.logger.info(f"=======================\n")
@@ -369,7 +367,7 @@ class DataGeneratorS3:
         leaf_URIs = self.get_leaf_folders()
         random.shuffle(leaf_URIs)
         
-        for idx, src_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc="Processing leaf URIs"):    
+        for idx, src_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc=f"Processing leaf URIs\n"):    
             target_URI = self.generate_target_URI(src_URI, self.dest_folder)
             
             leaf_folder = LeafFolder(src_URI, target_URI, 

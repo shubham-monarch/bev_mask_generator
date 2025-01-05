@@ -182,5 +182,8 @@ evaluation infrastructure
 + start occ mask pipeline
 - start camera-ext pipeline
 + fix tmp files in data-generator-s3
-- fill void with ground
+- fill void with grounds
 + update check index logic in data-generator-s3
+- add occlusion map generation in debug.py
+- add dedicated leaf-folder-cnt bash script
+- clean pytest bash script (see sbevnet)
