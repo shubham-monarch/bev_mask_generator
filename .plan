@@ -205,3 +205,4 @@ evaluation infrastructure
 - fix pcd_ground in generate_BEV
 - origin_pcd vs downsampled_pcd vs inliers_pcd
 - pcd_ground has not been downsampled before seg-mask generation
+- make bev-generator functions private
