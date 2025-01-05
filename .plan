@@ -178,7 +178,7 @@ evaluation infrastructure
 - filter out GT-seg-masks with z-min > 0
 - check occ-mask coverage
 + start occ mask pipeline
-- start camera-ext pipeline
++ start camera-ext pipeline
 + fix tmp files in data-generator-s3
 - fill void with grounds
 + update check index logic in data-generato r-s3
@@ -188,15 +188,14 @@ evaluation infrastructure
 - upload s3-index.json after each frame run
 
 
-- revisit clean around labels
-- why do we even need clean_around_labels? 
-- how does clean_around_labels affect the GT / model-training?
-- refactor bev-generator.py
-- add mutltiple classes in bev-generator.py
-- fix project_to_ground_plane
-- test the project_to_ground_plane fix
-- check the pcd_grond being used in the final bev
-- ignore pcd_ground from occ-mask calculations
+* revisit clean around labels
+* why do we even need clean_around_labels? 
+* how does clean_around_labels affect the GT / model-training?
++ refactor bev-generator.py
+- add more classes in bev-generator.py
++ fix project_to_ground_plane
++ test the project_to_ground_plane fix
++ check the pcd_grond being used in the final bev
 
 + refactor generate_BEV
 + refactor bev_generator.py
@@ -206,3 +205,6 @@ evaluation infrastructure
 + origin_pcd vs downsampled_pcd vs inliers_pcd
 + pcd_ground has not been downsampled before seg-mask generation
 - make bev-generator functions private
+
+- does img resizing affect the occ-map generation?
+- ignore pcd_ground from occ-mask calculations
