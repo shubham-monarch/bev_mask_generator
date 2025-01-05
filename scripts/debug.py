@@ -141,20 +141,11 @@ if __name__ == "__main__":
     logger.info(f"pcd_path: {pcd_path}")
     logger.info(f"================================================\n")
 
-    logger.warning(f"================================================")
-    logger.warning(f"len(pcd_input.point['positions']): {len(pcd_input.point['positions'])}")
-    logger.warning(f"================================================\n")
-
-
-    bev_segmented = bev_generator.generate_BEV(pcd_input)
-    
+    pcd_merged = bev_generator.generate_BEV(pcd_input)
+    o3d.t.io.write_point_cloud(f"debug/pcd-merged.ply", pcd_merged)
 
 
 
-
-    logger.warning(f"================================================")
-    logger.warning(f"len(bev_segmented.point['positions']): {len(bev_segmented.point['positions'])}")
-    logger.warning(f"================================================\n")
 
     
 

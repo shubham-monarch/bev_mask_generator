@@ -210,32 +210,34 @@ class BEVGenerator:
         R = I + vx + np.dot(vx, vx) * ((1 - c) / (s ** 2))
         return R
     
-    def merge_pcds(self, pcd_collection: List[o3d.t.geometry.PointCloud]) -> o3d.t.geometry.PointCloud:
+    def merge_pcds(self, bev_collection: List[o3d.t.geometry.PointCloud]) -> o3d.t.geometry.PointCloud:
         '''
         Merge collection of pcds along with their labels / colors / points
         '''
         
         # stack positions
-        position_tensors: List[np.ndarray] = [pcd.point['positions'].numpy() for pcd in pcd_collection]
+        position_tensors: List[np.ndarray] = [pcd.point['positions'].numpy() for pcd in bev_collection]
         stacked_positions: o3c.Tensor = o3c.Tensor(np.vstack(position_tensors), dtype=o3c.Dtype.Float32)
         
         # stack labels
-        label_tensors: List[np.ndarray] = [pcd.point['label'].numpy() for pcd in pcd_collection]
-        stacked_labels: o3c.Tensor = o3c.Tensor(np.vstack(label_tensors), dtype=o3c.Dtype.Int32)
-
-        # stack colors
-        color_tensors: List[np.ndarray] = [pcd.point['colors'].numpy() for pcd in pcd_collection]
-        stacked_colors: o3c.Tensor = o3c.Tensor(np.vstack(color_tensors), dtype=o3c.Dtype.UInt8)
+        label_tensors: List[np.ndarray] = [pcd.point['label'].numpy() for pcd in bev_collection]
+        stacked_labels: o3c.Tensor = o3c.Tensor(np.vstack(label_tensors), dtype=o3c.Dtype.UInt8)
         
-        # merge tensors
-        map_to_tensors: Dict[str, o3c.Tensor] = {}
-        map_to_tensors['positions'] = stacked_positions
-        map_to_tensors['label'] = stacked_labels
-        map_to_tensors['colors'] = stacked_colors        
+        # stack colors
+        color_tensors: List[np.ndarray] = [pcd.point['colors'].numpy() for pcd in bev_collection]
+        stacked_colors: o3c.Tensor = o3c.Tensor(np.vstack(color_tensors), dtype=o3c.Dtype.UInt8)
 
-        combined_pcd = o3d.t.geometry.PointCloud(map_to_tensors)    
+        # Create a unified point cloud
+        map_to_tensors: Dict[str, o3c.Tensor] = {
+            'positions': stacked_positions,
+            'label': stacked_labels,
+            'colors': stacked_colors        
+        }
+
+        # Create a unified point cloud
+        combined_pcd: o3d.t.geometry.PointCloud = o3d.t.geometry.PointCloud(map_to_tensors)    
         return combined_pcd
-
+    
     def axis_angles(self,vec):
         '''
         Calculate the angles between input vector and the coordinate axes
@@ -480,31 +482,32 @@ class BEVGenerator:
         
         pcd_tilt_rectified = self.get_tilt_rectified_pcd(pcd_input)
 
-        # filtering unwanted labels => [vegetation, tractor-hood, void, sky]
-        valid_labels = np.array([label["id"] for label in self.LABELS.values()])
-        valid_mask = np.isin(pcd_tilt_rectified.point['label'].numpy(), valid_labels)
+        # # filtering unwanted labels => [vegetation, tractor-hood, void, sky]
+        # valid_labels = np.array([label["id"] for label in self.LABELS.values()])
+        # valid_mask = np.isin(pcd_tilt_rectified.point['label'].numpy(), valid_labels)
         
-        # pcd_filtered = pcd_tilt_rectified.select_by_mask(valid_mask.flatten())
-        # original_points = len(pcd_tilt_rectified.point['positions'])
-        # filtered_points = len(pcd_filtered.point['positions'])
-        # reduction_percentage = ((original_points - filtered_points) / original_points) * 100    
-        
-        # unique_labels = np.unique(pcd_filtered.point['label'].numpy())
-
-        # self.logger.info(f"=================================")    
-        # self.logger.info(f"Before filtering: {original_points}")
-        # self.logger.info(f"After filtering: {filtered_points}")
-        # self.logger.info(f"Reduction %: {reduction_percentage:.2f}%")
-        # self.logger.info(f"Unique labels in pcd_filtered: {unique_labels}")
-        # self.logger.info(f"=================================\n")
+        # self.logger.info(f"type(pcd_input): {type(pcd_input)}")
         
         # class-wise point cloud extraction
-        pcd_canopy = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["VINE_CANOPY"]["id"])
-        pcd_pole = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["VINE_POLE"]["id"])
-        pcd_stem = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["VINE_STEM"]["id"])
-        pcd_obstacle = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["OBSTACLE"]["id"])
-        pcd_navigable = pcd_tilt_rectified.select_by_index(self.ground_inliers)
+        pcd_CANOPY = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["VINE_CANOPY"]["id"])
+        pcd_POLE = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["VINE_POLE"]["id"])
+        pcd_STEM = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["VINE_STEM"]["id"])
+        pcd_OBSTACLE = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["OBSTACLE"]["id"])
+        pcd_NAVIGABLE = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["NAVIGABLE_SPACE"]["id"])
+        pcd_NAVIGABLE = pcd_NAVIGABLE.select_by_index(self.ground_inliers)
 
+
+        self.logger.info(f"=================================")   
+        self.logger.info(f"len(pcd_input): {len(pcd_input.point['positions'])}") 
+        self.logger.info(f"type(pcd_CANOPY): {type(pcd_CANOPY)}")
+        self.logger.info(f"type(self.ground_inliers): {type(self.ground_inliers)}")
+        self.logger.info(f"len(self.ground_inliers): {len(self.ground_inliers)}")
+        self.logger.info(f"=================================\n")
+        
+
+        pcd_merged = self.merge_pcds([pcd_NAVIGABLE, pcd_CANOPY, pcd_STEM, pcd_POLE, pcd_OBSTACLE])
+
+        return pcd_merged
         # # num-points for each class
         # total_points = len(pcd_filtered.point['positions'])
         # canopy_points = len(pcd_canopy.point['positions'])
