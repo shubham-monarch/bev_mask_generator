@@ -157,12 +157,18 @@ class BEVGenerator:
             "NAVIGABLE_SPACE": {"id": 2, "priority": 5},  
         }
         
+        # tilt-correction matrix
         self.R = None
+
+
         self.logger = get_logger("bev_generator", level=logging.WARNING)
         
         # old / rectified ground plane normal
         self.old_normal = None  
         self.new_normal = None
+
+        # ground plane inliers
+        self.ground_inliers = None
 
         self.logger.info(f"=================================")      
         self.logger.info(f"BEVGenerator initialized")
@@ -243,9 +249,9 @@ class BEVGenerator:
         '''
         Compute navigation-space tilt w.r.t y-axis
         '''
-        ground_normal,_ = self.get_class_plane(pcd, self.LABELS["NAVIGABLE_SPACE"]["id"])
+        ground_normal, ground_inliers = self.get_class_plane(pcd, self.LABELS["NAVIGABLE_SPACE"]["id"])
         R = self.align_normal_to_y_axis(ground_normal)
-        return R, ground_normal
+        return R, ground_normal, ground_inliers
 
     def get_class_pointcloud(self, pcd: o3d.t.geometry.PointCloud, class_label: int):
         '''
@@ -340,10 +346,12 @@ class BEVGenerator:
         Tilt rectification for the input pointcloud
         '''
         # R = self.compute_tilt_matrix(pcd_input)
-        R, old_normal = self.compute_tilt_matrix(pcd_input)
+        R, old_normal, ground_inliers = self.compute_tilt_matrix(pcd_input)
         
+        # updating class variables
         self.R = R
         self.old_normal = old_normal
+        self.ground_inliers = ground_inliers
         
         # [before tilt rectification]
         # angle made by the normal vector with the [x-axis, y-axis, z-axis]
@@ -394,17 +402,15 @@ class BEVGenerator:
     ) -> List[o3d.t.geometry.PointCloud]:
         ''' Project the additional pointclouds to the navigable plane '''
         
-        normal, inliers = self.get_class_plane(pcd_navigable, self.LABELS["NAVIGABLE_SPACE"]["id"])
-        normal = normal / np.linalg.norm(normal)
-        inliers_navigable = pcd_navigable.select_by_index(inliers)
+        # normal, inliers = self.get_class_plane(pcd_navigable, self.LABELS["NAVIGABLE_SPACE"]["id"])
+        # normal = normal / np.linalg.norm(normal)
+        # inliers_navigable = pcd_navigable.select_by_index(inliers)
+
+        inliers_navigable = pcd_navigable.select_by_index(self.ground_inliers)
 
         # compute angle with y-axis
-        angle_y = self.axis_angles(normal)[1]
-        # self.logger.info(f"Angle between normal and y-axis: {angle_y:.2f} degrees")
-
-        # align normal with +y-axis 
-        if angle_y < 0:
-            normal = -normal
+        angle_y = self.axis_angles(self.new_normal)[1]
+        assert angle_y >= 0, "Error: angle_y is negative, indicating incorrect normal alignment."
 
         mean_Y = float(np.mean(inliers_navigable.point['positions'].numpy()[:, 1]))
         self.logger.info(f"=================================")    
