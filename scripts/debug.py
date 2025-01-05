@@ -98,7 +98,6 @@ if __name__ == "__main__":
     success_count = 0
     total_count = 0
     
-    bev_generator = BEVGenerator()
     
     pcd_files = []
     for root, _, files in os.walk(pcd_dir):
@@ -111,31 +110,56 @@ if __name__ == "__main__":
     pcd_files.sort()
     bev_generator = BEVGenerator()
 
-    for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
-        try:
-            pcd_input = o3d.t.io.read_point_cloud(pcd_path)
+    # for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
+    #     try:
+    #         pcd_input = o3d.t.io.read_point_cloud(pcd_path)
             
-            logger.info(f"================================================")
-            logger.info(f"len(pcd_input.point['positions']): {len(pcd_input.point['positions'])}")
-            logger.info(f"================================================\n")
+    #         logger.info(f"================================================")
+    #         logger.info(f"len(pcd_input.point['positions']): {len(pcd_input.point['positions'])}")
+    #         logger.info(f"================================================\n")
 
 
-            bev_segmented = bev_generator.generate_BEV(pcd_input)
+    #         bev_segmented = bev_generator.generate_BEV(pcd_input)
             
 
 
 
 
-            logger.info(f"================================================")
-            logger.info(f"len(bev_segmented.point['positions']): {len(bev_segmented.point['positions'])}")
-            logger.info(f"================================================\n")
+    #         logger.info(f"================================================")
+    #         logger.info(f"len(bev_segmented.point['positions']): {len(bev_segmented.point['positions'])}")
+    #         logger.info(f"================================================\n")
 
-            break
+    #         break
             
-        except Exception as e:
-            logger.error(f"Error processing {pcd_path}: {e}")
+    #     except Exception as e:
+    #         logger.error(f"Error processing {pcd_path}: {e}")
+
+    pcd_path = random.choice(pcd_files)
+    pcd_input = o3d.t.io.read_point_cloud(pcd_path)
+    
+    logger.info(f"================================================")
+    logger.info(f"pcd_path: {pcd_path}")
+    logger.info(f"================================================\n")
+
+    logger.warning(f"================================================")
+    logger.warning(f"len(pcd_input.point['positions']): {len(pcd_input.point['positions'])}")
+    logger.warning(f"================================================\n")
+
+
+    bev_segmented = bev_generator.generate_BEV(pcd_input)
+    
+
+
+
+
+    logger.warning(f"================================================")
+    logger.warning(f"len(bev_segmented.point['positions']): {len(bev_segmented.point['positions'])}")
+    logger.warning(f"================================================\n")
 
     
+
+
+
     # # ================================================
     # # CASE 8: fixing compute_tilt_matrix
     # # ================================================

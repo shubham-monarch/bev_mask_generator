@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import open3d.core as o3c
 from scipy.spatial import cKDTree
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 import torch
 
 from scripts.helpers import crop_pcd, mono_to_rgb_mask
@@ -210,24 +210,25 @@ class BEVGenerator:
         R = I + vx + np.dot(vx, vx) * ((1 - c) / (s ** 2))
         return R
     
-    def generate_unified_bev_pcd(self, bev_collection: List[o3d.t.geometry.PointCloud]):
+    def merge_pcds(self, pcd_collection: List[o3d.t.geometry.PointCloud]) -> o3d.t.geometry.PointCloud:
         '''
-        Generate a unified BEV pointcloud from a collection of label-specific BEV pointclouds
+        Merge collection of pcds along with their labels / colors / points
         '''
-        # Vertically stack the point positions of the bev_collection pointclouds
-        position_tensors = [pcd.point['positions'].numpy() for pcd in bev_collection]
-        stacked_positions = o3c.Tensor(np.vstack(position_tensors), dtype=o3c.Dtype.Float32)
         
-        # Vertically stack the point labels of the bev_collection pointclouds
-        label_tensors = [pcd.point['label'].numpy() for pcd in bev_collection]
-        stacked_labels = o3c.Tensor(np.vstack(label_tensors), dtype=o3c.Dtype.Int32)
+        # stack positions
+        position_tensors: List[np.ndarray] = [pcd.point['positions'].numpy() for pcd in pcd_collection]
+        stacked_positions: o3c.Tensor = o3c.Tensor(np.vstack(position_tensors), dtype=o3c.Dtype.Float32)
+        
+        # stack labels
+        label_tensors: List[np.ndarray] = [pcd.point['label'].numpy() for pcd in pcd_collection]
+        stacked_labels: o3c.Tensor = o3c.Tensor(np.vstack(label_tensors), dtype=o3c.Dtype.Int32)
 
-        # Vertically stack the point colors of the bev_collection pointclouds
-        color_tensors = [pcd.point['colors'].numpy() for pcd in bev_collection]
-        stacked_colors = o3c.Tensor(np.vstack(color_tensors), dtype=o3c.Dtype.UInt8)
+        # stack colors
+        color_tensors: List[np.ndarray] = [pcd.point['colors'].numpy() for pcd in pcd_collection]
+        stacked_colors: o3c.Tensor = o3c.Tensor(np.vstack(color_tensors), dtype=o3c.Dtype.UInt8)
         
-        # Create a unified point cloud
-        map_to_tensors = {}
+        # merge tensors
+        map_to_tensors: Dict[str, o3c.Tensor] = {}
         map_to_tensors['positions'] = stacked_positions
         map_to_tensors['label'] = stacked_labels
         map_to_tensors['colors'] = stacked_colors        
@@ -483,74 +484,74 @@ class BEVGenerator:
         valid_labels = np.array([label["id"] for label in self.LABELS.values()])
         valid_mask = np.isin(pcd_tilt_rectified.point['label'].numpy(), valid_labels)
         
-        pcd_filtered = pcd_tilt_rectified.select_by_mask(valid_mask.flatten())
-        original_points = len(pcd_tilt_rectified.point['positions'])
-        filtered_points = len(pcd_filtered.point['positions'])
-        reduction_percentage = ((original_points - filtered_points) / original_points) * 100    
+        # pcd_filtered = pcd_tilt_rectified.select_by_mask(valid_mask.flatten())
+        # original_points = len(pcd_tilt_rectified.point['positions'])
+        # filtered_points = len(pcd_filtered.point['positions'])
+        # reduction_percentage = ((original_points - filtered_points) / original_points) * 100    
         
-        unique_labels = np.unique(pcd_filtered.point['label'].numpy())
+        # unique_labels = np.unique(pcd_filtered.point['label'].numpy())
 
-        self.logger.info(f"=================================")    
-        self.logger.info(f"Before filtering: {original_points}")
-        self.logger.info(f"After filtering: {filtered_points}")
-        self.logger.info(f"Reduction %: {reduction_percentage:.2f}%")
-        self.logger.info(f"Unique labels in pcd_filtered: {unique_labels}")
-        self.logger.info(f"=================================\n")
+        # self.logger.info(f"=================================")    
+        # self.logger.info(f"Before filtering: {original_points}")
+        # self.logger.info(f"After filtering: {filtered_points}")
+        # self.logger.info(f"Reduction %: {reduction_percentage:.2f}%")
+        # self.logger.info(f"Unique labels in pcd_filtered: {unique_labels}")
+        # self.logger.info(f"=================================\n")
         
         # class-wise point cloud extraction
-        pcd_canopy = self.get_class_pointcloud(pcd_filtered, self.LABELS["VINE_CANOPY"]["id"])
-        pcd_pole = self.get_class_pointcloud(pcd_filtered, self.LABELS["VINE_POLE"]["id"])
-        pcd_stem = self.get_class_pointcloud(pcd_filtered, self.LABELS["VINE_STEM"]["id"])
-        pcd_obstacle = self.get_class_pointcloud(pcd_filtered, self.LABELS["OBSTACLE"]["id"])
-        pcd_navigable = self.get_class_pointcloud(pcd_filtered, self.LABELS["NAVIGABLE_SPACE"]["id"])
-        
-        # num-points for each class
-        total_points = len(pcd_filtered.point['positions'])
-        canopy_points = len(pcd_canopy.point['positions'])
-        pole_points = len(pcd_pole.point['positions'])
-        stem_points = len(pcd_stem.point['positions'])
-        obstacle_points = len(pcd_obstacle.point['positions'])
-        navigable_points = len(pcd_navigable.point['positions'])
-        
-        # % points for each class
-        canopy_percentage = (canopy_points / total_points) * 100
-        pole_percentage = (pole_points / total_points) * 100
-        stem_percentage = (stem_points / total_points) * 100
-        obstacle_percentage = (obstacle_points / total_points) * 100
-        navigable_percentage = (navigable_points / total_points) * 100
+        pcd_canopy = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["VINE_CANOPY"]["id"])
+        pcd_pole = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["VINE_POLE"]["id"])
+        pcd_stem = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["VINE_STEM"]["id"])
+        pcd_obstacle = self.get_class_pointcloud(pcd_tilt_rectified, self.LABELS["OBSTACLE"]["id"])
+        pcd_navigable = pcd_tilt_rectified.select_by_index(self.ground_inliers)
 
-        self.logger.info(f"=================================")    
-        self.logger.info(f"Total points: {total_points}")
-        self.logger.info(f"Canopy points: {canopy_points} [{canopy_percentage:.2f}%]")
-        self.logger.info(f"Pole points: {pole_points} [{pole_percentage:.2f}%]")
-        self.logger.info(f"Stem points: {stem_points} [{stem_percentage:.2f}%]")
-        self.logger.info(f"Obstacle points: {obstacle_points} [{obstacle_percentage:.2f}%]")
-        self.logger.info(f"Navigable points: {navigable_points} [{navigable_percentage:.2f}%]")
-        self.logger.info(f"=================================\n")
+        # # num-points for each class
+        # total_points = len(pcd_filtered.point['positions'])
+        # canopy_points = len(pcd_canopy.point['positions'])
+        # pole_points = len(pcd_pole.point['positions'])
+        # stem_points = len(pcd_stem.point['positions'])
+        # obstacle_points = len(pcd_obstacle.point['positions'])
+        # navigable_points = len(pcd_navigable.point['positions'])
+        
+        # # % points for each class
+        # canopy_percentage = (canopy_points / total_points) * 100
+        # pole_percentage = (pole_points / total_points) * 100
+        # stem_percentage = (stem_points / total_points) * 100
+        # obstacle_percentage = (obstacle_points / total_points) * 100
+        # navigable_percentage = (navigable_points / total_points) * 100
 
-        # downsampling label-wise pointcloud
-        down_pcd = pcd_filtered.voxel_down_sample(voxel_size=0.01)
-        down_canopy = pcd_canopy.voxel_down_sample(voxel_size=0.01)
-        down_navigable = pcd_navigable.voxel_down_sample(voxel_size=0.01)
+        # self.logger.info(f"=================================")    
+        # self.logger.info(f"Total points: {total_points}")
+        # self.logger.info(f"Canopy points: {canopy_points} [{canopy_percentage:.2f}%]")
+        # self.logger.info(f"Pole points: {pole_points} [{pole_percentage:.2f}%]")
+        # self.logger.info(f"Stem points: {stem_points} [{stem_percentage:.2f}%]")
+        # self.logger.info(f"Obstacle points: {obstacle_points} [{obstacle_percentage:.2f}%]")
+        # self.logger.info(f"Navigable points: {navigable_points} [{navigable_percentage:.2f}%]")
+        # self.logger.info(f"=================================\n")
+
+        # # downsampling label-wise pointcloud
+        # down_pcd = pcd_filtered.voxel_down_sample(voxel_size=0.01)
+        # down_canopy = pcd_canopy.voxel_down_sample(voxel_size=0.01)
+        # down_navigable = pcd_navigable.voxel_down_sample(voxel_size=0.01)
           
-        # NOT DOWN-SAMPLING [obstacle, stem, pole]
-        down_obstacle = pcd_obstacle.clone()
-        down_stem = pcd_stem.clone()
-        down_pole = pcd_pole.clone()
+        # # NOT DOWN-SAMPLING [obstacle, stem, pole]
+        # down_obstacle = pcd_obstacle.clone()
+        # down_stem = pcd_stem.clone()
+        # down_pole = pcd_pole.clone()
 
-        down_total_points = len(down_pcd.point['positions'].numpy())
-        down_canopy_points = len(down_canopy.point['positions'])
-        down_pole_points = len(down_pole.point['positions'])
-        down_stem_points = len(down_stem.point['positions'])
-        down_obstacle_points = len(down_obstacle.point['positions'])
-        down_navigable_points = len(down_navigable.point['positions'])
+        # down_total_points = len(down_pcd.point['positions'].numpy())
+        # down_canopy_points = len(down_canopy.point['positions'])
+        # down_pole_points = len(down_pole.point['positions'])
+        # down_stem_points = len(down_stem.point['positions'])
+        # down_obstacle_points = len(down_obstacle.point['positions'])
+        # down_navigable_points = len(down_navigable.point['positions'])
 
-        total_reduction_pct = (total_points - down_total_points) / total_points * 100 if total_points != 0 else 0
-        canopy_reduction_pct = (canopy_points - down_canopy_points) / canopy_points * 100 if canopy_points != 0 else 0
-        pole_reduction_pct = (pole_points - down_pole_points) / pole_points * 100 if pole_points != 0 else 0
-        stem_reduction_pct = (stem_points - down_stem_points) / stem_points * 100 if stem_points != 0 else 0
-        obstacle_reduction_pct = (obstacle_points - down_obstacle_points) / obstacle_points * 100 if obstacle_points != 0 else 0
-        navigable_reduction_pct = (navigable_points - down_navigable_points) / navigable_points * 100 if navigable_points != 0 else 0
+        # total_reduction_pct = (total_points - down_total_points) / total_points * 100 if total_points != 0 else 0
+        # canopy_reduction_pct = (canopy_points - down_canopy_points) / canopy_points * 100 if canopy_points != 0 else 0
+        # pole_reduction_pct = (pole_points - down_pole_points) / pole_points * 100 if pole_points != 0 else 0
+        # stem_reduction_pct = (stem_points - down_stem_points) / stem_points * 100 if stem_points != 0 else 0
+        # obstacle_reduction_pct = (obstacle_points - down_obstacle_points) / obstacle_points * 100 if obstacle_points != 0 else 0
+        # navigable_reduction_pct = (navigable_points - down_navigable_points) / navigable_points * 100 if navigable_points != 0 else 0
         
         # self.logger.info(f"=================================")    
         # self.logger.info(f"[AFTER DOWNSAMPLING]")
@@ -562,65 +563,65 @@ class BEVGenerator:
         # self.logger.info(f"Navigable points: {down_navigable_points} [-{navigable_reduction_pct:.2f}%]")
         # self.logger.info(f"=================================\n")
         
-        # radius-based outlier removal
-        rad_filt_pole = down_pole if len(down_pole.point['positions']) == 0 else self.filter_radius_outliers(down_pole, nb_points=16, search_radius=0.05)[0]
-        rad_filt_stem = down_stem if len(down_stem.point['positions']) == 0 else self.filter_radius_outliers(down_stem, nb_points=16, search_radius=0.05)[0]
-        rad_filt_obstacle = down_obstacle if len(down_obstacle.point['positions']) == 0 else self.filter_radius_outliers(down_obstacle, nb_points=10, search_radius=0.05)[0]
+        # # radius-based outlier removal
+        # rad_filt_pole = down_pole if len(down_pole.point['positions']) == 0 else self.filter_radius_outliers(down_pole, nb_points=16, search_radius=0.05)[0]
+        # rad_filt_stem = down_stem if len(down_stem.point['positions']) == 0 else self.filter_radius_outliers(down_stem, nb_points=16, search_radius=0.05)[0]
+        # rad_filt_obstacle = down_obstacle if len(down_obstacle.point['positions']) == 0 else self.filter_radius_outliers(down_obstacle, nb_points=10, search_radius=0.05)[0]
         
-        rad_filt_pole_points = len(rad_filt_pole.point['positions'].numpy())
-        rad_filt_stem_points = len(rad_filt_stem.point['positions'].numpy())
-        rad_filt_obstacle_points = len(rad_filt_obstacle.point['positions'].numpy())
+        # rad_filt_pole_points = len(rad_filt_pole.point['positions'].numpy())
+        # rad_filt_stem_points = len(rad_filt_stem.point['positions'].numpy())
+        # rad_filt_obstacle_points = len(rad_filt_obstacle.point['positions'].numpy())
         
-        pole_reduction_pct = (down_pole_points - rad_filt_pole_points) / down_pole_points * 100 if down_pole_points != 0 else 0
-        stem_reduction_pct = (down_stem_points - rad_filt_stem_points) / down_stem_points * 100 if down_stem_points != 0 else 0
-        obstacle_reduction_pct = (down_obstacle_points - rad_filt_obstacle_points) / down_obstacle_points * 100 if down_obstacle_points != 0 else 0
+        # pole_reduction_pct = (down_pole_points - rad_filt_pole_points) / down_pole_points * 100 if down_pole_points != 0 else 0
+        # stem_reduction_pct = (down_stem_points - rad_filt_stem_points) / down_stem_points * 100 if down_stem_points != 0 else 0
+        # obstacle_reduction_pct = (down_obstacle_points - rad_filt_obstacle_points) / down_obstacle_points * 100 if down_obstacle_points != 0 else 0
+        
+        # # self.logger.info(f"=================================")    
+        # # self.logger.info(f"[AFTER RADIUS-BASED OUTLIER REMOVAL]")
+        # # self.logger.info(f"Pole points: {rad_filt_pole_points} [-{pole_reduction_pct:.2f}%]")
+        # # self.logger.info(f"Stem points: {rad_filt_stem_points} [-{stem_reduction_pct:.2f}%]")
+        # # self.logger.info(f"Obstacle points: {rad_filt_obstacle_points} [-{obstacle_reduction_pct:.2f}%]")
+        # # self.logger.info(f"=================================\n")
+
+        # pcd_collection = [down_navigable, down_canopy, rad_filt_stem, rad_filt_pole, rad_filt_obstacle]
+
+        # # projecting to ground plane
+        # bev_navigable, bev_canopy, bev_stem, bev_pole, bev_obstacle = (
+        #     self.project_to_ground_plane(
+        #         pcd_navigable, 
+        #         [down_canopy, 
+        #         rad_filt_stem, 
+        #         rad_filt_pole, 
+        #         rad_filt_obstacle]
+        #     )
+        # )
+
+
+
+
+        # [bev_navigable, bev_canopy, bev_stem, bev_pole, bev_obstacle] = self.clean_around_features(
+        #     bev_obstacle, 
+        #     bev_pole, 
+        #     bev_stem, 
+        #     bev_canopy, 
+        #     bev_navigable
+        # )
+
+        # bev_collection = [bev_navigable, bev_canopy, bev_stem, bev_pole, bev_obstacle]
+        # # bev_collection = [bev_navigable, bev_canopy]
+        
+        # combined_pcd = self.generate_unified_bev_pcd(bev_collection)    
+
+        # unique_labels = np.unique(combined_pcd.point['label'].numpy())
         
         # self.logger.info(f"=================================")    
-        # self.logger.info(f"[AFTER RADIUS-BASED OUTLIER REMOVAL]")
-        # self.logger.info(f"Pole points: {rad_filt_pole_points} [-{pole_reduction_pct:.2f}%]")
-        # self.logger.info(f"Stem points: {rad_filt_stem_points} [-{stem_reduction_pct:.2f}%]")
-        # self.logger.info(f"Obstacle points: {rad_filt_obstacle_points} [-{obstacle_reduction_pct:.2f}%]")
+        # self.logger.info(f"Number of unique labels: {len(unique_labels)}")
+        # self.logger.info(f"Unique labels: {unique_labels}")
         # self.logger.info(f"=================================\n")
 
-        pcd_collection = [down_navigable, down_canopy, rad_filt_stem, rad_filt_pole, rad_filt_obstacle]
+        # # debug_utils.plot_bev_scatter(bev_collection)
 
-        # projecting to ground plane
-        bev_navigable, bev_canopy, bev_stem, bev_pole, bev_obstacle = (
-            self.project_to_ground_plane(
-                pcd_navigable, 
-                [down_canopy, 
-                rad_filt_stem, 
-                rad_filt_pole, 
-                rad_filt_obstacle]
-            )
-        )
-
-
-
-
-        [bev_navigable, bev_canopy, bev_stem, bev_pole, bev_obstacle] = self.clean_around_features(
-            bev_obstacle, 
-            bev_pole, 
-            bev_stem, 
-            bev_canopy, 
-            bev_navigable
-        )
-
-        bev_collection = [bev_navigable, bev_canopy, bev_stem, bev_pole, bev_obstacle]
-        # bev_collection = [bev_navigable, bev_canopy]
-        
-        combined_pcd = self.generate_unified_bev_pcd(bev_collection)    
-
-        unique_labels = np.unique(combined_pcd.point['label'].numpy())
-        
-        self.logger.info(f"=================================")    
-        self.logger.info(f"Number of unique labels: {len(unique_labels)}")
-        self.logger.info(f"Unique labels: {unique_labels}")
-        self.logger.info(f"=================================\n")
-
-        # debug_utils.plot_bev_scatter(bev_collection)
-
-        return combined_pcd
+        # return combined_pcd
 
     def generate_downsampled_pcd(self, pcd_collection: List[o3d.t.geometry.PointCloud]) -> o3d.t.geometry.PointCloud:
         '''combine pcds in pcd_collection'''
