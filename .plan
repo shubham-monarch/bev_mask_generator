@@ -208,3 +208,8 @@ evaluation infrastructure
 
 - does img resizing affect the occ-map generation?
 - ignore pcd_ground from occ-mask calculations
+- use data-augmentation to increase frame-cnt in sbevnet
+- load K from zed-sdk
+
+- fix intermittent out-of-memory issue for occ-map
+- test occ-map with debug/frames-4/
