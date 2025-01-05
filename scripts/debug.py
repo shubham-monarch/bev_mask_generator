@@ -83,78 +83,6 @@ if __name__ == "__main__":
     # CASE 9: occ-testing
     # ================================================
 
-    pcd_dir = f"debug/frames-2"
-    
-    seg_masks_dir = f"debug/2/seg-masks"
-    rectified_pcd_dir = f"debug/2/rectified-pcd"
-    left_img_dir = f"debug/2/left-imgs"
-    right_img_dir = f"debug/2/right-imgs"
-    
-    os.makedirs(seg_masks_dir, exist_ok=True)
-    os.makedirs(rectified_pcd_dir, exist_ok=True)
-    os.makedirs(left_img_dir, exist_ok=True)
-    os.makedirs(right_img_dir, exist_ok=True)
-    
-    success_count = 0
-    total_count = 0
-    
-    
-    pcd_files = []
-    for root, _, files in os.walk(pcd_dir):
-        for file in files:
-            if file == "left-segmented-labelled.ply":
-                pcd_files.append(os.path.join(root, file))
-    
-    total_count = len(pcd_files)
-    
-    pcd_files.sort()
-    bev_generator = BEVGenerator()
-
-    # for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
-    #     try:
-    #         pcd_input = o3d.t.io.read_point_cloud(pcd_path)
-            
-    #         logger.info(f"================================================")
-    #         logger.info(f"len(pcd_input.point['positions']): {len(pcd_input.point['positions'])}")
-    #         logger.info(f"================================================\n")
-
-
-    #         bev_segmented = bev_generator.generate_BEV(pcd_input)
-            
-
-
-
-
-    #         logger.info(f"================================================")
-    #         logger.info(f"len(bev_segmented.point['positions']): {len(bev_segmented.point['positions'])}")
-    #         logger.info(f"================================================\n")
-
-    #         break
-            
-    #     except Exception as e:
-    #         logger.error(f"Error processing {pcd_path}: {e}")
-
-    pcd_path = random.choice(pcd_files)
-    pcd_input = o3d.t.io.read_point_cloud(pcd_path)
-    
-    logger.info(f"================================================")
-    logger.info(f"pcd_path: {pcd_path}")
-    logger.info(f"================================================\n")
-
-    pcd_merged = bev_generator.generate_BEV(pcd_input)
-    o3d.t.io.write_point_cloud(f"debug/pcd-merged.ply", pcd_merged)
-
-
-
-
-    
-
-
-
-    # # ================================================
-    # # CASE 8: fixing compute_tilt_matrix
-    # # ================================================
-
     # pcd_dir = f"debug/frames-2"
     
     # seg_masks_dir = f"debug/2/seg-masks"
@@ -170,7 +98,6 @@ if __name__ == "__main__":
     # success_count = 0
     # total_count = 0
     
-    # bev_generator = BEVGenerator()
     
     # pcd_files = []
     # for root, _, files in os.walk(pcd_dir):
@@ -183,59 +110,112 @@ if __name__ == "__main__":
     # pcd_files.sort()
     # bev_generator = BEVGenerator()
 
-    # for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
-    #     try:
-    #         pcd_input = o3d.t.io.read_point_cloud(pcd_path)
-            
-    #         # # saving left-imgs
-    #         # img_dir = os.path.dirname(pcd_path)
-    #         # left_src = os.path.join(img_dir, "left.jpg")
-    #         # right_src = os.path.join(img_dir, "right.jpg")
 
-    #         # left_dest = os.path.join(left_img_dir, f"left-img-{idx}.jpg")
-    #         # right_dest = os.path.join(right_img_dir, f"right-img-{idx}.jpg")
-
-    #         # shutil.copy(left_src, left_dest)
-    #         # shutil.copy(right_src, right_dest)
-
-    #         # saving rectified pcd
-    #         pcd_rectified = bev_generator.tilt_rectification(pcd_input)
-            
-    #         z_r = pcd_rectified.point['positions'][:, 2].numpy()
-            
-    #         logger.warning(f"================================================")
-    #         logger.warning(f"z_r ==> [{z_r.min():.2f}, {z_r.max():.2f}]")
-    #         logger.warning(f"================================================\n")
-            
-
-    #         # output_path = os.path.join(rectified_pcd_dir, f"rectified-pcd-{idx}.ply")
-    #         # o3d.t.io.write_point_cloud(output_path, pcd_rectified)
-
-    #         # generating GT-seg-mask
-    #         crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
-    #         seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
-    #                                                                       nx = 256, nz = 256, 
-    #                                                                       bb = crop_bb,
-    #                                                                       yaml_path="config/Mavis.yaml")
-    #         seg_mask_mono = np.flip(seg_mask_mono, axis=0)
-            
-    #         # # saving GT-seg-mask
-    #         # output_path = os.path.join(seg_masks_dir, f"seg-mask-{idx}.png")
-    #         # plot_segmentation_classes(seg_mask_mono, output_path)
-    #         plot_segmentation_classes(seg_mask_mono)
-    #         break
-            
-    #     except Exception as e:
-    #         logger.error(f"Error processing {pcd_path}: {e}")
-
-    # pcd_input = o3d.t.io.read_point_cloud(pcd_files[-1])
-    # crop_bb = {'x_min': -10, 'x_max': 10, 'z_min': 0, 'z_max': 20}
-    # seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
-    #                                                                 nx = 256, nz = 256, 
-    #                                                                 bb = crop_bb)
+    # pcd_path = random.choice(pcd_files)
+    # pcd_input = o3d.t.io.read_point_cloud(pcd_path)
     
-    # plot_segmentation_classes(seg_mask_mono)
+    # logger.info(f"================================================")
+    # logger.info(f"pcd_path: {pcd_path}")
+    # logger.info(f"================================================\n")
 
+    # pcd_merged = bev_generator.generate_BEV(pcd_input)
+    # o3d.t.io.write_point_cloud(f"debug/pcd-merged.ply", pcd_merged)
+
+
+
+
+    
+
+
+
+    # # ================================================
+    # # CASE 8: fixing compute_tilt_matrix
+    # # ================================================
+
+    pcd_dir = f"debug/frames-2"
+    
+    seg_masks_dir = f"debug/2/seg-masks"
+    rectified_pcd_dir = f"debug/2/rectified-pcd"
+    left_img_dir = f"debug/2/left-imgs"
+    right_img_dir = f"debug/2/right-imgs"
+    
+    os.makedirs(seg_masks_dir, exist_ok=True)
+    os.makedirs(rectified_pcd_dir, exist_ok=True)
+    os.makedirs(left_img_dir, exist_ok=True)
+    os.makedirs(right_img_dir, exist_ok=True)
+    
+    success_count = 0
+    total_count = 0
+    
+    bev_generator = BEVGenerator()
+    
+    pcd_files = []
+    for root, _, files in os.walk(pcd_dir):
+        for file in files:
+            if file == "left-segmented-labelled.ply":
+                pcd_files.append(os.path.join(root, file))
+    
+    total_count = len(pcd_files)
+    
+    pcd_files.sort()
+    bev_generator = BEVGenerator()
+
+    for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
+        try:
+            pcd_input = o3d.t.io.read_point_cloud(pcd_path)
+            
+            logger.info(f"================================================")
+            logger.info(f"pcd_path: {pcd_path}")
+            logger.info(f"================================================\n")
+
+            # # saving left-imgs
+            # img_dir = os.path.dirname(pcd_path)
+            # left_src = os.path.join(img_dir, "left.jpg")
+            # right_src = os.path.join(img_dir, "right.jpg")
+
+            # left_dest = os.path.join(left_img_dir, f"left-img-{idx}.jpg")
+            # right_dest = os.path.join(right_img_dir, f"right-img-{idx}.jpg")
+
+            # shutil.copy(left_src, left_dest)
+            # shutil.copy(right_src, right_dest)
+
+            # saving rectified pcd
+            # pcd_rectified = bev_generator.tilt_rectification(pcd_input)
+            
+            # z_r = pcd_rectified.point['positions'][:, 2].numpy()
+            
+            # logger.warning(f"================================================")
+            # logger.warning(f"z_r ==> [{z_r.min():.2f}, {z_r.max():.2f}]")
+            # logger.warning(f"================================================\n")
+            
+
+            # output_path = os.path.join(rectified_pcd_dir, f"rectified-pcd-{idx}.ply")
+            # o3d.t.io.write_point_cloud(output_path, pcd_rectified)
+
+            # generating GT-seg-mask
+            crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
+            seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+                                                                          nx = 256, nz = 256, 
+                                                                          bb = crop_bb,
+                                                                          yaml_path="config/Mavis.yaml")
+            seg_mask_mono = np.flip(seg_mask_mono, axis=0)
+            seg_mask_rgb = np.flip(seg_mask_rgb, axis=0)
+
+            # path_seg_mask_rgb = os.path.join(seg_masks_dir, f"seg-mask-rgb-{idx}.png")
+            # cv2.imwrite(path_seg_mask_rgb, seg_mask_rgb)
+
+            # # saving GT-seg-mask
+            output_path = os.path.join(seg_masks_dir, f"seg-mask-{idx}.png")
+            cv2.imwrite(output_path, seg_mask_rgb)
+            
+            # plotting GT-seg-mask
+            # plot_segmentation_classes(seg_mask_mono, output_path)
+            # plot_segmentation_classes(seg_mask_mono)
+             
+        except Exception as e:
+            logger.error(f"Error processing {pcd_path}: {e}")
+
+    
 
 
     # ================================================
