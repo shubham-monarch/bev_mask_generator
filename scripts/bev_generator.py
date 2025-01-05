@@ -281,73 +281,6 @@ class BEVGenerator:
         normal = normal / np.linalg.norm(normal) 
         return normal, inliers
     
-
-
-    def clean_around_label(
-        self, 
-        pcd_target: o3d.t.geometry.PointCloud, 
-        pcd_source: o3d.t.geometry.PointCloud, 
-        tolerance: float = 0.02
-    ) -> o3d.t.geometry.PointCloud:
-        
-        '''
-        Remove points in pcd_source that are close to the points in pcd_target
-        '''
-        
-        # Get positions for stem and canopy
-        target_points = pcd_target.point['positions'].numpy()
-        source_points = pcd_source.point['positions'].numpy()
-
-        # Create arrays of (x,z) coordinates
-        target_xz = target_points[:, [0,2]]  # Get x,z columns
-        source_xz = source_points[:, [0,2]]  # Get x,z columns
-
-        # Create KD-trees for efficient nearest neighbor search
-        target_tree = cKDTree(target_xz)
-        source_tree = cKDTree(source_xz)    
-
-        # Find matches within a tolerance of 0.01
-        tolerance = 0.02
-        matches = []
-
-        to_remove = []
-        for i in range(len(source_xz)):
-            indices = target_tree.query_ball_point(source_xz[i], r=tolerance)
-            if len(indices) > 0:
-                to_remove.append(i)
-        
-        positions = np.delete(pcd_source.point['positions'].numpy(), to_remove, axis=0)
-        labels = np.delete(pcd_source.point['label'].numpy(), to_remove, axis=0)
-        colors = np.delete(pcd_source.point['colors'].numpy(), to_remove, axis=0)
-        
-        # Update bev_navigable with new positions and labels
-        pcd_source.point['positions'] = o3c.Tensor(positions, dtype=o3c.Dtype.Float32)
-        pcd_source.point['label'] = o3c.Tensor(labels, dtype=o3c.Dtype.Int32)
-        pcd_source.point['colors'] = o3c.Tensor(colors, dtype=o3c.Dtype.UInt8)
-
-        # self.logger.info(f"=================================")
-        # self.logger.info(f"Found {len(to_remove)} matches!")
-        # self.logger.info(f"=================================\n")
-
-        return pcd_source
-
-    def clean_around_labels(
-        self, 
-        pcd_target: o3d.t.geometry.PointCloud, 
-        pcd_sources: List[o3d.t.geometry.PointCloud], 
-        tolerance: float = 0.02
-    ) -> List[o3d.t.geometry.PointCloud]:
-        
-        '''
-        Remove points in pcd_sources that are close to the points in pcd_target
-        '''
-        
-        cleaned_pcds = []
-        for pcd in pcd_sources:
-            pcd_cleaned = self.clean_around_label(pcd_target, pcd, tolerance)
-            cleaned_pcds.append(pcd_cleaned)
-        return cleaned_pcds
-    
     def get_tilt_rectified_pcd(self, pcd_input: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
         '''
         The function aligns the GROUND plane normal to CAMERA y-axis \
@@ -403,41 +336,10 @@ class BEVGenerator:
         angles = self.axis_angles(self.new_normal)
         return angles[1]
 
-    def clean_around_features(
-        self, 
-        bev_obstacle: o3d.t.geometry.PointCloud, 
-        bev_pole: o3d.t.geometry.PointCloud, 
-        bev_stem: o3d.t.geometry.PointCloud, 
-        bev_canopy: o3d.t.geometry.PointCloud, 
-        bev_navigable: o3d.t.geometry.PointCloud
-    ) -> List[o3d.t.geometry.PointCloud]:
-        
-        '''Clean around each label in the BEV pointclouds'''
-
-        # cleaning around obstacle
-        # self.logger.warning(f"Cleaning around OBSTACLE!")
-        [bev_navigable, bev_canopy, bev_stem, bev_pole] = self.clean_around_labels(bev_obstacle, [bev_navigable, bev_canopy, bev_stem, bev_pole], tolerance=0.02)
-        
-        # self.logger.info(f"[AFTER] len(bev_stem): {len(bev_stem.point['positions'])}")
-        
-        # cleaning around poles
-        # self.logger.warning(f"Cleaning around POLE!")
-        [bev_navigable, bev_canopy] = self.clean_around_labels(bev_pole, [bev_navigable, bev_canopy], tolerance=0.02)
-        
-        # cleaning around stem
-        # self.logger.warning(f"Cleaning around STEM!")
-        [bev_navigable, bev_canopy] = self.clean_around_labels(bev_stem, [bev_navigable, bev_canopy], tolerance=0.02)
-
-        # cleaning around canopy
-        # self.logger.warning(f"Cleaning around CANOPY!")
-        [bev_navigable] = self.clean_around_labels(bev_canopy, [bev_navigable], tolerance=0.01)
-
-        return [bev_navigable, bev_canopy, bev_stem, bev_pole, bev_obstacle]
-
-    def _get_downsampled_pcd(self) -> o3d.t.geometry.PointCloud:
+    def get_downsampled_pcd(self) -> o3d.t.geometry.PointCloud:
         '''Get the merged  pointcloud just before bev generation'''
-        assert self.down_pcd is not None, "Downsampled pointcloud is not initialized!"
-        return self.down_pcd
+        assert self.downsampled_pcd is not None, "Downsampled pointcloud is not initialized!"
+        return self.downsampled_pcd
 
     def generate_BEV(self, pcd_input: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
         """Generate BEV from segmented pointcloud"""
@@ -494,7 +396,6 @@ class BEVGenerator:
         self.logger.info(f"=================================\n")
 
         return bev_pcd
-        
         
     def bev_to_seg_mask_mono(self, pcd: o3d.t.geometry.PointCloud, 
                                       nx: int = 200, nz: int = 200, 

@@ -2215,5 +2215,16 @@
     "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-31-19.svo/336_to_478/frame-438": {},
     "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-24-54.svo/2142_to_2284/frame-2264": {},
     "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-24-54.svo/2142_to_2284/frame-2274": {},
-    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-10-20-37.svo/392_to_534/frame-434": {}
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-10-20-37.svo/392_to_534/frame-434": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-34-57.svo/112_to_254/frame-164": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-09-36-19.svo/868_to_1010/frame-960": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-11-32-41.svo/4_to_146/frame-90": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-10-38-41.svo/746_to_888/frame-778": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-09-48-13.svo/2704_to_2846/frame-2766": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-06-10-33-41.svo/1908_to_2050/frame-1950": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-29-57.svo/526_to_668/frame-528": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-11-43-21.svo/996_to_1138/frame-1070": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-12-22-05.svo/514_to_656/frame-636": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/RJM/2024_06_06_utc/svo_files/front_2024-06-05-11-22-41.svo/962_to_1104/frame-1090": {},
+    "s3://occupancy-dataset/occ-dataset/vineyards/gallo/2024_06_07_utc/svo_files/front_2024-06-04-10-44-57.svo/1128_to_1270/frame-1130": {}
 }
