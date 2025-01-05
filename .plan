@@ -198,11 +198,11 @@ evaluation infrastructure
 - check the pcd_grond being used in the final bev
 - ignore pcd_ground from occ-mask calculations
 
-- refactor generate_BEV
-- refactor bev_generator.py
++ refactor generate_BEV
++ refactor bev_generator.py
 - add static methods in bev-generator
 - fill ground points in GT-seg-masks
-- fix pcd_ground in generate_BEV
-- origin_pcd vs downsampled_pcd vs inliers_pcd
-- pcd_ground has not been downsampled before seg-mask generation
++ fix pcd_ground in generate_BEV
++ origin_pcd vs downsampled_pcd vs inliers_pcd
++ pcd_ground has not been downsampled before seg-mask generation
 - make bev-generator functions private
