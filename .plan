@@ -91,22 +91,22 @@ aws based bev-generator
 + ability to resume 
 - data field agnostic resumption [i.e. left / right / mono / seg-masks-mono / seg-masks-rgb/ occlusion-mask]
 - upload updated index to s3 in every run
-- [util] count number of files in s3 bev-dataset
++ [util] count number of files in s3 bev-dataset
 
 ======================
 implement leafFolder class
 ======================
-- close s3 client when leafFolder goes out of scope
-- add leafFolder destructor
-- better name for leafFolder
+* close s3 client when leafFolder goes out of scope
+* add leafFolder destructor
+* better name for leafFolder
 + upload  scaled images
-- add exception handling
-- add error handling in process_folder
++ add exception handling
++ add error handling in process_folder
 * tmp-folder clean-up after each run
-- add native progress bar for upload / download file function
-- rename data-generator-s3.py to pipeline
+* add native progress bar for upload / download file function
+* rename data-generator-s3.py to pipeline
 + add uploded folder indexing
-- scope for multithreading
+* scope for multithreading
 
 
 ======================
@@ -153,8 +153,6 @@ evaluation infrastructure
 - fix camera extrinsics calculations
 + review tilt correction --> axis angles calculations 
 - start occlusion map pipeline
-- add static methods in bev-generator
-- fill ground points in GT-seg-masks
 + tighten compute_tilt_matrix threshold
 * log global success rate for compute_tilt_matrix
 - add comments for all the functions
@@ -185,7 +183,7 @@ evaluation infrastructure
 - fill void with grounds
 + update check index logic in data-generato r-s3
 - add occlusion map generation in debug.py
-- add dedicated leaf-folder-cnt bash script
++ add dedicated leaf-folder-cnt bash script
 - clean pytest bash script (see sbevnet)
 - upload s3-index.json after each frame run
 
@@ -196,3 +194,13 @@ evaluation infrastructure
 - refactor bev-generator.py
 - add mutltiple classes in bev-generator.py
 - fix project_to_ground_plane
+- test the project_to_ground_plane fix
+- check the pcd_grond being used in the final bev
+- ignore pcd_ground from occ-mask calculations
+
+- refactor generate_BEV
+- refactor bev_generator.py
+- add static methods in bev-generator
+- fill ground points in GT-seg-masks
+- fix pcd_ground in generate_BEV
+

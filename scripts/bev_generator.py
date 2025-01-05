@@ -170,6 +170,10 @@ class BEVGenerator:
         # ground plane inliers
         self.ground_inliers = None
 
+        # downsampled pcd
+        self.downsampled_pcd = None
+
+
         self.logger.info(f"=================================")      
         self.logger.info(f"BEVGenerator initialized")
         self.logger.info(f"=================================\n")
@@ -206,7 +210,7 @@ class BEVGenerator:
         R = I + vx + np.dot(vx, vx) * ((1 - c) / (s ** 2))
         return R
     
-    def generate_unified_bev_pcd(self, bev_collection):
+    def generate_unified_bev_pcd(self, bev_collection: List[o3d.t.geometry.PointCloud]):
         '''
         Generate a unified BEV pointcloud from a collection of label-specific BEV pointclouds
         '''
@@ -577,6 +581,8 @@ class BEVGenerator:
         # self.logger.info(f"Obstacle points: {rad_filt_obstacle_points} [-{obstacle_reduction_pct:.2f}%]")
         # self.logger.info(f"=================================\n")
 
+        pcd_collection = [down_navigable, down_canopy, rad_filt_stem, rad_filt_pole, rad_filt_obstacle]
+
         # projecting to ground plane
         bev_navigable, bev_canopy, bev_stem, bev_pole, bev_obstacle = (
             self.project_to_ground_plane(
@@ -588,12 +594,7 @@ class BEVGenerator:
             )
         )
 
-        # bev_navigable, bev_canopy = (
-        #     self.project_to_ground_plane(
-        #         pcd_navigable, 
-        #         [down_canopy] 
-        #     )
-        # )
+
 
 
         [bev_navigable, bev_canopy, bev_stem, bev_pole, bev_obstacle] = self.clean_around_features(
@@ -619,7 +620,16 @@ class BEVGenerator:
         # debug_utils.plot_bev_scatter(bev_collection)
 
         return combined_pcd
-    
+
+    def generate_downsampled_pcd(self, pcd_collection: List[o3d.t.geometry.PointCloud]) -> o3d.t.geometry.PointCloud:
+        '''combine pcds in pcd_collection'''
+
+        combined_pcd = o3d.t.geometry.PointCloud()
+        for pcd in pcd_collection:
+            combined_pcd += pcd
+
+       
+
     def bev_to_seg_mask_mono(self, pcd: o3d.t.geometry.PointCloud, 
                                       nx: int = 200, nz: int = 200, 
                                       bb: dict = None) -> np.ndarray:
