@@ -213,3 +213,17 @@ evaluation infrastructure
 
 - fix intermittent out-of-memory issue for occ-map
 - test occ-map with debug/frames-4/
+
+======================
+marcus suggestions
+======================
+- warm-up + cool-down 
+- pytorch lightening
+- pytorch fabric
+
+- rename files inside the test folder
+
+- establish bug in bev_to_seg_mask_mono
+- add priority map in bev_to_seg_mask_mono
+- bev_to_seg_mask_mono might be wrong because of no xmax, zmax
+- bev_to_seg_mask_mono --> bev_pcd_to_seg_mask_mono
