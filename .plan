@@ -214,6 +214,10 @@ evaluation infrastructure
 - fix intermittent out-of-memory issue for occ-map
 - test occ-map with debug/frames-4/
 
+- write better commnents
+- add raises in doc-strings
+
+
 ======================
 marcus suggestions
 ======================
@@ -228,5 +232,13 @@ marcus suggestions
 + bev_to_seg_mask_mono might be wrong because of no xmax, zmax
 + bev_to_seg_mask_mono --> bev_pcd_to_seg_mask_mono
 + label calculation in wrong in bev_to_seg_mask_mono
-- assign highest-priority to occ-mask
++ assign highest-priority to occ-mask
 - check occ-mask integration in sbevnet
+
+- update bb value in data-generator-s3
+- use bb value from z = (0.02,5) and not (0,5)
+- remove invalid points (project to [1080 * 1920] image) before generating bev-mask
+
+- rename occ.py to occ-mask-generator
+- do we need to pass the camera rotation-matrix to occ-mask-generator
+- pass camera-rotation-matrix to occ-mask
