@@ -396,7 +396,8 @@ class BEVGenerator:
         self.logger.info(f"=================================\n")
 
         return bev_pcd
-        
+    
+
     def bev_to_seg_mask_mono(self, pcd: o3d.t.geometry.PointCloud, 
                                       nx: int = 200, nz: int = 200, 
                                       bb: dict = None) -> np.ndarray:
@@ -427,7 +428,6 @@ class BEVGenerator:
         self.logger.info(f"Resolution X: {res_x:.4f} meters, Z: {res_z:.4f} meters")
         self.logger.info(f"=================================\n")
 
-    
         # extract point coordinates and labels
         x_coords = pcd.point['positions'][:, 0].numpy()
         z_coords = pcd.point['positions'][:, 2].numpy()
@@ -440,11 +440,20 @@ class BEVGenerator:
         mask_z = nz - 1 - ((z_coords - z_min) / res_z).astype(np.int32)
         assert mask_z.min() >= 0 and mask_z.max() < nz, "z-indices are out of bounds!"
         
-        # initialize mask
-        mask = np.zeros((nz, nx), dtype=np.uint8)
+        # initialize mask with maximum priority value (lowest priority)
+        mask = np.full((nz, nx), 255, dtype=np.uint8)
         
+        # Create priority lookup for each label
+        label_priorities = {label_info["id"]: label_info["priority"] 
+                          for label_info in self.LABELS.values()}
+        
+        # Assign labels respecting priorities (lower priority number = higher priority)
         for x, z, label in zip(mask_x, mask_z, labels):
-            mask[z, x] = label  
+            current_priority = label_priorities.get(mask[z, x], float('inf'))
+            new_priority = label_priorities.get(label, float('inf'))
+            
+            if new_priority < current_priority:
+                mask[z, x] = label
 
         return mask
   
