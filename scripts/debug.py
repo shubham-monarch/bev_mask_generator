@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import random
 import numpy as np
 import yaml
+import logging
 import shutil
 
 from scripts.bev_generator import BEVGenerator
@@ -178,7 +179,7 @@ if __name__ == "__main__":
     # random.shuffle(pcd_files)
     pcd_files.sort()
 
-    bev_generator = BEVGenerator()
+    bev_generator = BEVGenerator(logging_level=logging.WARNING)
     occ_map_generator = OcclusionMap()
 
     for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
@@ -205,33 +206,37 @@ if __name__ == "__main__":
             path_pcd_rectified = os.path.join(rectified_pcd_dir, f"rectified-pcd-{idx}.ply")
             o3d.t.io.write_point_cloud(path_pcd_rectified, pcd_rectified)
 
-            # camera-matrix 
-            camera_matrix = np.array([[1090.536, 0, 954.99],
-                                       [0, 1090.536, 523.12],
-                                       [0, 0, 1]], dtype=np.float32)
-
-            # occ-map generation
-            bev_pcd = bev_generator.generate_BEV(pcd_rectified)
-            pcd_downsampled = bev_generator.get_downsampled_pcd()
-            occ_pcd = occ_map_generator.get_occ_pcd(pcd_downsampled, camera_matrix)
-            path_occ_pcd = os.path.join(occ_pcd_dir, f"occ-pcd-{idx}.ply")
-            o3d.t.io.write_point_cloud(path_occ_pcd, occ_pcd)
-
-            # # generating GT-seg-mask
+            # # camera-matrix 
+            # camera_matrix = np.array([[1090.536, 0, 954.99],
+            #                            [0, 1090.536, 523.12],
+            #                            [0, 0, 1]], dtype=np.float32)
+            # # crop-bb 
             # crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
-            # seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
-            #                                                               nx = 256, nz = 256, 
-            #                                                               bb = crop_bb,
-            #                                                               yaml_path="config/Mavis.yaml")
-            # seg_mask_mono = np.flip(seg_mask_mono, axis=0)
-            # seg_mask_rgb = np.flip(seg_mask_rgb, axis=0)
 
-            # path_seg_mask_rgb = os.path.join(seg_masks_dir, f"seg-mask-rgb-{idx}.png")
-            # cv2.imwrite(path_seg_mask_rgb, seg_mask_rgb)
+            # # occ-map generation
+            # bev_pcd = bev_generator.generate_BEV(pcd_rectified)
+            # pcd_downsampled = bev_generator.get_downsampled_pcd()
+            
+            # occ_pcd = occ_map_generator.get_occ_mask(pcd = pcd_downsampled, 
+            #                                          K = camera_matrix, 
+            #                                          bb = crop_bb)
+            # path_occ_pcd = os.path.join(occ_pcd_dir, f"occ-pcd-{idx}.ply")
+            # o3d.t.io.write_point_cloud(path_occ_pcd, occ_pcd)
 
-            # # saving GT-seg-mask
-            # output_path = os.path.join(seg_masks_dir, f"seg-mask-{idx}.png")
-            # cv2.imwrite(output_path, seg_mask_rgb)
+            # generating GT-seg-mask
+            crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
+            seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+                                                                          nx = 256, nz = 256, 
+                                                                          bb = crop_bb,
+                                                                          yaml_path="config/Mavis.yaml")
+            
+            seg_mask_mono = np.flip(seg_mask_mono, axis=0)
+            seg_mask_rgb = np.flip(seg_mask_rgb, axis=0)
+
+            # saving seg-mask-rgb
+            path_seg_mask_rgb = os.path.join(seg_masks_dir, f"seg-mask-rgb-{idx}.png")
+            cv2.imwrite(path_seg_mask_rgb, seg_mask_rgb)
+
             
             # plotting GT-seg-mask
             # plot_segmentation_classes(seg_mask_mono, output_path)

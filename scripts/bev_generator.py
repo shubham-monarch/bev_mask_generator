@@ -145,7 +145,7 @@ class RotationUtils:
     
 
 class BEVGenerator:
-    def __init__(self):
+    def __init__(self, logging_level=logging.WARNING):
         
         '''BEV data from segmented pointcloud'''
         
@@ -160,8 +160,7 @@ class BEVGenerator:
         # tilt-correction matrix
         self.R = None
 
-
-        self.logger = get_logger("bev_generator", level=logging.WARNING)
+        self.logger = get_logger("bev_generator", level=logging_level)
         
         # old / rectified ground plane normal
         self.old_normal = None  
@@ -172,7 +171,6 @@ class BEVGenerator:
 
         # downsampled pcd
         self.downsampled_pcd = None
-
 
         self.logger.info(f"=================================")      
         self.logger.info(f"BEVGenerator initialized")
@@ -398,7 +396,7 @@ class BEVGenerator:
         return bev_pcd
     
 
-    def bev_to_seg_mask_mono(self, pcd: o3d.t.geometry.PointCloud, 
+    def bev_pcd_to_seg_mask_mono(self, pcd: o3d.t.geometry.PointCloud, 
                                       nx: int = 200, nz: int = 200, 
                                       bb: dict = None) -> np.ndarray:
         """
@@ -447,14 +445,17 @@ class BEVGenerator:
         label_priorities = {label_info["id"]: label_info["priority"] 
                           for label_info in self.LABELS.values()}
         
+     
+        labels = pcd.point['label'].numpy().astype(np.int32).flatten()
+        
         # Assign labels respecting priorities (lower priority number = higher priority)
         for x, z, label in zip(mask_x, mask_z, labels):
-            current_priority = label_priorities.get(mask[z, x], float('inf'))
-            new_priority = label_priorities.get(label, float('inf'))
+            current_priority = label_priorities.get(int(mask[z, x]), float('inf'))
+            new_priority = label_priorities.get(int(label), float('inf'))
             
             if new_priority < current_priority:
                 mask[z, x] = label
-
+        
         return mask
   
     def pcd_to_seg_mask(self, 
@@ -471,7 +472,7 @@ class BEVGenerator:
         bev_pcd = self.generate_BEV(pcd)
         bev_pcd_cropped = crop_pcd(bev_pcd, bb)
 
-        seg_mask_mono = self.bev_to_seg_mask_mono(bev_pcd_cropped, nx, nz, bb)
+        seg_mask_mono = self.bev_pcd_to_seg_mask_mono(bev_pcd_cropped, nx, nz, bb)
         seg_mask_rgb = mono_to_rgb_mask(seg_mask_mono, yaml_path=yaml_path)
 
         return seg_mask_mono, seg_mask_rgb

@@ -221,10 +221,12 @@ marcus suggestions
 - pytorch lightening
 - pytorch fabric
 
-- rename files inside the test folder
++ rename files inside the test folder
 
 - establish bug in bev_to_seg_mask_mono
-- add priority map in bev_to_seg_mask_mono
++ add priority map in bev_to_seg_mask_mono
 + bev_to_seg_mask_mono might be wrong because of no xmax, zmax
 + bev_to_seg_mask_mono --> bev_pcd_to_seg_mask_mono
-- label calculation in wrong in bev_to_seg_mask_mono
++ label calculation in wrong in bev_to_seg_mask_mono
+- assign highest-priority to occ-mask
+- check occ-mask integration in sbevnet
