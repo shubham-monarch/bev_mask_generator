@@ -356,7 +356,23 @@ class BEVGenerator:
         # downsampling label-wise pointcloud
         down_CANOPY: o3d.t.geometry.PointCloud = pcd_CANOPY.voxel_down_sample(voxel_size=0.01)
         down_NAVIGABLE: o3d.t.geometry.PointCloud = pcd_NAVIGABLE.voxel_down_sample(voxel_size=0.01)
-          
+        # down_CANOPY = pcd_CANOPY.clone()
+        # down_NAVIGABLE = pcd_NAVIGABLE.clone()
+
+        pts_canopy = len(pcd_CANOPY.point['positions'])
+        pts_canopy_DOWN = len(down_CANOPY.point['positions'])
+
+        pts_navigable = len(pcd_NAVIGABLE.point['positions'])
+        pts_navigable_DOWN = len(down_NAVIGABLE.point['positions'])
+        
+        percent_red_canopy = (pts_canopy - pts_canopy_DOWN) / pts_canopy
+        percent_red_navigable = (pts_navigable - pts_navigable_DOWN) / pts_navigable
+
+        self.logger.info(f"=================================")      
+        self.logger.info(f"% REDUCTION CANOPY: {percent_red_canopy:.2f}")
+        self.logger.info(f"% REDUCTION NAVIGABLE: {percent_red_navigable:.2f}")
+        self.logger.info(f"=================================\n")
+
         # NOT DOWN-SAMPLING [obstacle, stem, pole]
         down_OBSTACLE: o3d.t.geometry.PointCloud = pcd_OBSTACLE.clone()
         down_STEM: o3d.t.geometry.PointCloud = pcd_STEM.clone()
@@ -477,7 +493,7 @@ class BEVGenerator:
 
         return seg_mask_mono, seg_mask_rgb
 
-    def get_updated_camera_extrinsics(self, pcd: o3d.t.geometry.PointCloud) -> np.ndarray:
+    def get_updated_camera_extrinsics(self) -> np.ndarray:
         '''Get updated camera extrinsics after tilting the pointcloud'''
         
         assert self.R is not None, "Rotation matrix is required!"
