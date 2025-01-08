@@ -172,6 +172,9 @@ class BEVGenerator:
         # downsampled pcd
         self.downsampled_pcd = None
 
+        # rectified pcd
+        self.rectified_pcd = None
+
         self.logger.info(f"=================================")      
         self.logger.info(f"BEVGenerator initialized")
         self.logger.info(f"=================================\n")
@@ -284,6 +287,15 @@ class BEVGenerator:
         The function aligns the GROUND plane normal to CAMERA y-axis \
         in the CAMERA frame of reference
         '''
+
+        if self.rectified_pcd is not None:
+            
+            self.logger.warning(f"=================================")      
+            self.logger.warning(f"Rectified pcd already computed!")
+            self.logger.warning(f"=================================\n")
+            
+            return self.rectified_pcd
+        
         # R = self.compute_tilt_matrix(pcd_input)
         R, old_normal, ground_inliers = self.compute_tilt_matrix(pcd_input)
         
@@ -325,6 +337,9 @@ class BEVGenerator:
         
         # making y-axis perpendicular to the ground plane + right-handed coordinate system
         pcd_corrected.rotate(R, center=(0, 0, 0))
+
+        # updating class variables
+        self.rectified_pcd = pcd_corrected
         return pcd_corrected
     
     def get_normal_alignment(self):
