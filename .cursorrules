@@ -1,1 +1,14 @@
 - don't be aggressive with deleting comments
+- used best coding practices
+- special emphasis on readability and maintainability
+- use logging instead of print statements
+- use try-except blocks to handle errors gracefully
+- use type hints and docstrings to improve code readability and maintainability
+- use meaningful variable and function names
+- use meaningful comments to explain "why" behind the code
+- use meaningful docstrings to explain "what" the function does
+- use meaningful error messages to explain "what" went wrong
+- use meaningful exception names to explain "what" went wrong
+- use meaningful logging levels to explain "what" went wrong
+- use stack-traces to explain "where" the error occurred
+- do not use logging.debug

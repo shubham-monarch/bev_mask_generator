@@ -235,10 +235,16 @@ marcus suggestions
 + assign highest-priority to occ-mask
 - check occ-mask integration in sbevnet
 
+
+
 - update bb value in data-generator-s3
-- use bb value from z = (0.02,5) and not (0,5)
+- set bb to {'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5}
+
 - remove invalid points (project to [1080 * 1920] image) before generating bev-mask
 
+
 - rename occ.py to occ-mask-generator
-- do we need to pass the camera rotation-matrix to occ-mask-generator
+- do we need to pass the camera rotation-matrix to occ-mask-generator?
 - pass camera-rotation-matrix to occ-mask
+- [debug] reduce depth-threshold
+- [debug] is occ-detection working for uncropped points?
