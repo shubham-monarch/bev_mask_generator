@@ -169,11 +169,11 @@ class BEVGenerator:
         # ground plane inliers
         self.ground_inliers = None
 
-        # downsampled pcd
-        self.downsampled_pcd = None
+        # rectified 3D BEV pcd
+        self.pcd_BEV_3D = None
 
-        # rectified pcd
-        self.rectified_pcd = None
+        # rectified PCD
+        self.pcd_RECTIFIED = None
 
         self.logger.info(f"=================================")      
         self.logger.info(f"BEVGenerator initialized")
@@ -288,15 +288,12 @@ class BEVGenerator:
         in the CAMERA frame of reference
         '''
 
-        if self.rectified_pcd is not None:
-            
+        if self.pcd_RECTIFIED is not None:
             self.logger.warning(f"=================================")      
             self.logger.warning(f"Rectified pcd already computed!")
             self.logger.warning(f"=================================\n")
-            
-            return self.rectified_pcd
-        
-        # R = self.compute_tilt_matrix(pcd_input)
+            return self.pcd_RECTIFIED
+
         R, old_normal, ground_inliers = self.compute_tilt_matrix(pcd_input)
         
         # updating class variables
@@ -339,7 +336,7 @@ class BEVGenerator:
         pcd_corrected.rotate(R, center=(0, 0, 0))
 
         # updating class variables
-        self.rectified_pcd = pcd_corrected
+        self.pcd_RECTIFIED = pcd_corrected
         return pcd_corrected
     
     def get_normal_alignment(self):
@@ -349,13 +346,14 @@ class BEVGenerator:
         angles = self.axis_angles(self.new_normal)
         return angles[1]
 
-    def get_downsampled_pcd(self) -> o3d.t.geometry.PointCloud:
-        '''Get the merged  pointcloud just before bev generation'''
-        assert self.downsampled_pcd is not None, "Downsampled pointcloud is not initialized!"
-        return self.downsampled_pcd
+    def get_pcd_BEV_3D(self) -> o3d.t.geometry.PointCloud:
+        '''Get the merged 3D BEV pointcloud just before bev generation'''
+        assert self.pcd_BEV_3D is not None, "3D BEV pointcloud is not initialized!"
+        return self.pcd_BEV_3D
 
-    def generate_BEV(self, pcd_input: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
-        """Generate BEV from segmented pointcloud"""
+    def generate_pcd_BEV_2D(self, pcd_input: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
+        
+        """Generate BEV pcd (with z = 0) from segmented pointcloud"""
         
         pcd_RECTIFIED: o3d.t.geometry.PointCloud = self.get_tilt_rectified_pcd(pcd_input)
 
@@ -409,11 +407,11 @@ class BEVGenerator:
         
 
         # merging label-wise pointclouds
-        self.downsampled_pcd: o3d.t.geometry.PointCloud = self.merge_pcds([down_NAVIGABLE, down_CANOPY, rad_filt_STEM, rad_filt_POLE, rad_filt_OBSTACLE])
+        self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([down_NAVIGABLE, down_CANOPY, rad_filt_STEM, rad_filt_POLE, rad_filt_OBSTACLE])
         
         # converting to BEV
-        bev_pcd = self.downsampled_pcd.clone()
-        bev_pcd.point['positions'][:, 1] = 0.0  # Set all y-coordinates to 0
+        pcd_BEV_2D = self.pcd_BEV_3D.clone()
+        pcd_BEV_2D.point['positions'][:, 1] = 0.0  # Set all y-coordinates to 0
         
         self.logger.info(f"=================================")    
         self.logger.info(f"[BEFORE / AFTER DOWNSAMPLING]")
@@ -424,7 +422,7 @@ class BEVGenerator:
         self.logger.info(f"OBSTACLE: {len(pcd_OBSTACLE.point['positions'])} | {len(down_OBSTACLE.point['positions'])}")
         self.logger.info(f"=================================\n")
 
-        return bev_pcd
+        return pcd_BEV_2D
     
 
     def bev_pcd_to_seg_mask_mono(self, pcd: o3d.t.geometry.PointCloud, 
@@ -500,10 +498,10 @@ class BEVGenerator:
         assert bb is not None, "Bounding box parameters are required!"
         assert nx is not None and nz is not None, "nx and nz must be provided!"
         
-        bev_pcd = self.generate_BEV(pcd)
-        bev_pcd_cropped = crop_pcd(bev_pcd, bb)
+        pcd_BEV_2D = self.generate_pcd_BEV_2D(pcd)
+        pcd_BEV_2D_CROPPED = crop_pcd(pcd_BEV_2D, bb)
 
-        seg_mask_mono = self.bev_pcd_to_seg_mask_mono(bev_pcd_cropped, nx, nz, bb)
+        seg_mask_mono = self.bev_pcd_to_seg_mask_mono(pcd_BEV_2D_CROPPED, nx, nz, bb)
         seg_mask_rgb = mono_to_rgb_mask(seg_mask_mono, yaml_path=yaml_path)
 
         return seg_mask_mono, seg_mask_rgb

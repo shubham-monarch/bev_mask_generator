@@ -29,7 +29,10 @@ class OcclusionMap:
     # # Default parameters
     def __init__(self):
         """Initialize OcclusionMap."""
-        OcclusionMap.logger.info("OcclusionMap initialized")
+
+        OcclusionMap.logger.info(f"===========================")
+        OcclusionMap.logger.info(f"OcclusionMap initialized")
+        OcclusionMap.logger.info(f"===========================\n")
 
     @staticmethod
     def get_occ_mask(pcd: o3d.t.geometry.PointCloud,
@@ -45,8 +48,8 @@ class OcclusionMap:
         # OcclusionMap.logger.info(f"================================================\n")
 
         # Crop point cloud if bounding box provided
-        pcd_cropped = crop_pcd(pcd, bb)
-        # pcd_cropped = pcd
+        # pcd_cropped = crop_pcd(pcd, bb)
+        pcd_cropped = pcd
         
         # OcclusionMap.logger.info(f"================================================")
         # OcclusionMap.logger.info(f"pcd_cropped.point['positions'].shape: {pcd_cropped.point['positions'].shape}")
