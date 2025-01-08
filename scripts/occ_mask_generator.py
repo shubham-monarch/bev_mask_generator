@@ -8,161 +8,162 @@ import numpy as np
 import open3d.core as o3c
 import logging
 import cv2
-from typing import Dict
+from typing import Dict, Tuple
 import matplotlib.pyplot as plt
 
 from scripts.logger import get_logger
 from scripts.helpers import crop_pcd
 
-class OcclusionMap:
+class OccMap:
     """Class for generating occlusion maps from point clouds using depth buffer approach."""
 
-    # Class-level logger
+    # class-level variables
     logger = get_logger("occlusion_map", level=logging.INFO)
+    
     DEPTH_THRESHOLD = 0.1
     Z_MIN = 0.02
 
-    # # Default parameters
-    # PADDING: ClassVar[int] = 100  # pixels
-    # DEPTH_THRESHOLD: ClassVar[float] = 0.1  # 10cm threshold for occlusion detection
-
-    # # Default parameters
     def __init__(self):
         """Initialize OcclusionMap."""
 
-        OcclusionMap.logger.info(f"===========================")
-        OcclusionMap.logger.info(f"OcclusionMap initialized")
-        OcclusionMap.logger.info(f"===========================\n")
+        OccMap.logger.info(f"===========================")
+        OccMap.logger.info(f"OccMap initialized")
+        OccMap.logger.info(f"===========================\n")
+
+    @staticmethod
+    def generate_pixel_coordinates(pcd: o3d.t.geometry.PointCloud, 
+                              K: np.ndarray, 
+                              P: np.ndarray) -> np.ndarray:
+        """
+        :param pcd -> [N, 3] point cloud
+        :param K -> [3 * 3] camera intrinsic matrix
+        :param P -> [3 * 4] camera extrinsic matrix --> [R | t]
+        """
+        
+        assert K.shape == (3, 3), "camera_intrinsic_matrix must be a 3x3 matrix"
+        assert P.shape == (3, 4), "camera_extrinsic_matrix must be a 3x4 matrix"
+
+        X: np.ndarray = pcd.point['positions'].numpy() # [N, 3]
+        X_homo: np.ndarray = np.hstack([X, np.ones((X.shape[0], 1))]) # [N, 4]
+
+        # camera projection matrix -->  K * [R | t] 
+        M: np.ndarray = K @ P # [3 * 4]
+
+        # project points to 2D image plane
+        x_homo: np.ndarray = (M @ X_homo.T).T # [N, 3]
+
+        # perspective division
+        x_homo: np.ndarray = x_homo / x_homo[:, 2:3] # [N, 3]
+        
+        # non-homogeneous coordinates
+        x: np.ndarray = np.floor(x_homo[:, :2]).astype(int) # [N, 2]
+
+        assert x.shape == (X.shape[0], 2), "pixel coordinates must be a 2D array"
+        return x
+    
+    @staticmethod
+    def generate_depth_buffer(pcd: o3d.t.geometry.PointCloud,
+                              img_coords: np.ndarray,
+                              EPS: float = 1e-6,
+                              img_shape: Tuple[int, int] = (1080, 1920)) -> np.ndarray:
+        
+        assert pcd.point['positions'].numpy().shape[0] == img_coords.shape[0], \
+            "pcd and img_coords must have the same number of points"
+        assert img_coords.shape[1] == 2, \
+            "img_coords must be a 2D array with shape [N, 2]"
+
+        h, w = img_shape
+        
+        u, v = img_coords[:, 0], img_coords[:, 1]
+        depths = pcd.point['positions'].numpy()[:, 2]
+
+        assert u.shape == v.shape == depths.shape, \
+            "u, v, and depths must have the same shape"
+
+        # Create a mask for valid projected points within the bounds
+        valid_mask: np.ndarray = ((0 <= u) & (u < h) & (0 <= v) & (v < w))
+        
+        OccMap.logger.warning(f"===========================")
+        OccMap.logger.warning(f"valid_ratio: {valid_mask.sum() / len(valid_mask)}")
+        OccMap.logger.warning(f"===========================\n")
+
+        valid_u: np.ndarray = u[valid_mask]
+        valid_v: np.ndarray = v[valid_mask]
+        valid_depths: np.ndarray = depths[valid_mask]
+
+        depth_buffer: np.ndarray = np.full((h, w), np.inf)
+        
+        for u, v, d in zip(valid_u, valid_v, valid_depths):
+            depth_buffer[u, v] = min(depth_buffer[u, v], d)
+        
+        return depth_buffer
 
     @staticmethod
     def get_occ_mask(pcd: o3d.t.geometry.PointCloud,
-                     camera_matrix: np.ndarray,
+                     K: np.ndarray,
+                     P: np.ndarray,
                      bb: Dict[str, float] = None,
-                     camera_projection_matrix: np.ndarray = None) -> o3d.t.geometry.PointCloud:
+                     img_shape: Tuple[int, int] = (1080, 1920)) -> o3d.t.geometry.PointCloud:
         
-        if camera_matrix.shape != (3, 3):
-            raise ValueError("Camera intrinsics must be a 3x3 matrix")
-        
-        # OcclusionMap.logger.info(f"================================================")
-        # OcclusionMap.logger.info(f"pcd.point['positions'].shape: {pcd.point['positions'].shape}")
-        # OcclusionMap.logger.info(f"================================================\n")
+        """
+        :param pcd -> [N, 3] point cloud
+        :param K -> [3 * 3] camera intrinsic matrix
+        :param P -> [3 * 4] camera extrinsic matrix --> [R | t]
+        """
 
-        # Crop point cloud if bounding box provided
-        # pcd_cropped = crop_pcd(pcd, bb)
-        pcd_cropped = pcd
+        assert K.shape == (3, 3), "camera_intrinsic_matrix must be a 3x3 matrix"
+        assert P.shape == (3, 4), "camera_extrinsic_matrix must be a 3x4 matrix"
         
-        # OcclusionMap.logger.info(f"================================================")
-        # OcclusionMap.logger.info(f"pcd_cropped.point['positions'].shape: {pcd_cropped.point['positions'].shape}")
-        # OcclusionMap.logger.info(f"================================================\n")
-        
-        # OcclusionMap.logger.info(f"================================================")
-        # OcclusionMap.logger.info(f"camera_matrix: {camera_matrix}")
-        # OcclusionMap.logger.info(f"================================================\n")
+        # crop pcd
+        pcd_cropped = crop_pcd(pcd, bb)
 
-        # OcclusionMap.logger.info(f"================================================")
-        # OcclusionMap.logger.info(f"camera_projection_matrix: {camera_projection_matrix}")
-        # OcclusionMap.logger.info(f"================================================\n")
+        # [N, 2]
+        img_coords: np.ndarray = OccMap.generate_pixel_coordinates(pcd_cropped, K, P)
 
-        # Create working copy
-        # occ_pcd = pcd_cropped.clone()
-        points = pcd_cropped.point['positions'].numpy()
+        import matplotlib.pyplot as plt
         
-        # Calculate depths and project points
-        proj_points = (camera_matrix @ points.T).T  # [N, 3]
+        # Visualize the image coordinates
+        plt.figure(figsize=(10, 10))
+        plt.scatter(img_coords[:, 0], img_coords[:, 1], c='blue', marker='o', label='Projected Points')
+        plt.xlim(0, img_shape[1])
+        plt.ylim(img_shape[0], 0)  # Invert y-axis to match image coordinates
+        plt.title('Visualization of Projected Image Coordinates')
+        plt.xlabel('Image Width (u)')
+        plt.ylabel('Image Height (v)')
+        plt.legend()
+        plt.grid()
+        plt.show()
 
-        # Apply camera rotation matrix
-        camera_rotation_matrix = camera_projection_matrix[:3, :3]
-        proj_points = (camera_rotation_matrix @ points.T).T  # [N, 3]
-        
-        # OcclusionMap.logger.info(f"================================================")
-        # OcclusionMap.logger.info(f"Projected points shape: {proj_points.shape}")
-        # OcclusionMap.logger.info(f"================================================\n")
-        
-        
-        # Extract x, y, z coordinates from projected points
-        x_coords = proj_points[:, 0]
-        y_coords = proj_points[:, 1]
-        z_coords = points[:, 2]  # Original z-coordinates from the point cloud
-        
-        # Create a histogram for z-values
-        # plt.figure(figsize=(10, 6))
-        # plt.hist(z_coords, bins=30, color='blue', alpha=0.7)
-        # plt.title('Histogram of Z Coordinates')
-        # plt.xlabel('Z Coordinate Value')
-        # plt.ylabel('Frequency')
-        # plt.grid(axis='y', alpha=0.75)
-        # plt.show()
-        
-        # OcclusionMap.logger.warning(f"================================================")
-        # OcclusionMap.logger.warning(f"range of z_coords: ({z_coords.min()}, {z_coords.max()})")
-        # OcclusionMap.logger.warning(f"================================================\n")
+        # [h, w]
+        depth_buffer: np.ndarray = OccMap.generate_depth_buffer(pcd_cropped, img_coords)
 
-        # Perspective division
-        x_proj = (proj_points[:, 0] / proj_points[:, 2]).astype(int)
-        y_proj = (proj_points[:, 1] / proj_points[:, 2]).astype(int)
+        h, w = img_shape
+        u, v = img_coords[:, 0], img_coords[:, 1]
+        depths = pcd_cropped.point['positions'].numpy()[:, 2]
         
-        # OcclusionMap.logger.info(f"================================================")
-        # OcclusionMap.logger.info("x_proj shape: %s", x_proj.shape)
-        # OcclusionMap.logger.info("y_proj shape: %s", y_proj.shape)
-        # OcclusionMap.logger.info(f"================================================\n")
-
-        # # Visualize points after perspective division
-        # fig2, ax2 = plt.subplots(figsize=(10, 8))
-        # scatter2 = ax2.scatter(x_proj, y_proj, c=z_coords, cmap='viridis', label='Points After Perspective Division')  # Using z_coords instead of depths
-        # ax2.set_xlabel('X Projected')
-        # ax2.set_ylabel('Y Projected')
-        # ax2.set_title('Points After Perspective Division')
-        # ax2.legend()
-        # plt.colorbar(scatter2, label='Z Coordinate')  # Updated label to reflect z_coords
-        # plt.show()
-
-       
-        h, w = 1080, 1920
-        depth_buffer = np.full((h, w), np.inf)
-        EPS = 1e-6
-        # Create a mask for valid projected points within the bounds
-        valid_mask = (0 <= x_proj) & (x_proj < h) & (0 <= y_proj) & (y_proj < w)
-        
-        # OcclusionMap.logger.warning(f"================================================")
-        # OcclusionMap.logger.warning(f"valid_mask shape: {valid_mask.shape}")
-        # OcclusionMap.logger.warning(f"% valid points: {valid_mask.sum() / valid_mask.size * 100:.2f}%")
-        # OcclusionMap.logger.warning(f"================================================\n")
-
-
-
-        for i, (x, y, d) in enumerate(zip(x_proj[valid_mask], y_proj[valid_mask], z_coords[valid_mask])):
-            depth_buffer[x, y] = min(depth_buffer[x, y], d)
-        
-        # Detect occlusions
-        occluded_mask = np.zeros(len(points), dtype=bool)
-        for i, (x, y, d) in enumerate(zip(x_proj, y_proj, z_coords)):
-            if 0 <= x < h and 0 <= y < w:
-                if d > depth_buffer[x, y] + OcclusionMap.DEPTH_THRESHOLD:
-                    occluded_mask[i] = True
-                    # OcclusionMap.logger.error(f"========================")
-                    # OcclusionMap.logger.error(f"occluded point: {i}")
-                    # OcclusionMap.logger.error(f"========================")
-        
-        # OcclusionMap.logger.info(f"================================================")
-        # OcclusionMap.logger.info(f"Finished generating occlusion mask!")
-        # OcclusionMap.logger.info(f"occluded_mask shape: {occluded_mask.shape}")
-        # OcclusionMap.logger.info(f"================================================\n")
+        # detect occlusions
+        occ_mask: np.ndarray = np.zeros(len(depths), dtype=bool)
+        for i, (u, v, d) in enumerate(zip(u, v, depths)):
+            if 0 <= u < h and 0 <= v < w:
+                if d > depth_buffer[u, v] + OccMap.DEPTH_THRESHOLD:
+                    occ_mask[i] = True
+                
             
-        # Color occluded points
-        colors = pcd_cropped.point['colors'].numpy()
-        colors[occluded_mask] = np.array([255, 165, 0])  # Orange
+        # color occluded points
+        colors: np.ndarray = pcd_cropped.point['colors'].numpy()
+        colors[occ_mask] = np.array([255, 165, 0])  # Orange
 
-        occ_pcd = pcd_cropped.clone()
+        occ_pcd: o3d.t.geometry.PointCloud = pcd_cropped.clone()
         occ_pcd.point['colors'] = o3c.Tensor(colors, dtype=o3c.Dtype.UInt8)
         
-        # Log results
-        occluded_count = occluded_mask.sum()
-        total_points = len(pcd_cropped.point['positions'].numpy())
-        occluded_percentage = 100 * occluded_count / total_points
-        
-        OcclusionMap.logger.info("Occlusion detection complete:")
-        OcclusionMap.logger.info("- Found %d occluded points", occluded_count)
-        OcclusionMap.logger.info("- Total points: %d", total_points)
-        OcclusionMap.logger.info("- Percentage occluded: %.2f%%", occluded_percentage)
+        # log results
+        occ_count: int = occ_mask.sum()
+        total_points: int = len(pcd_cropped.point['positions'].numpy())
+        occ_percentage: float = 100 * occ_count / total_points
+
+        OccMap.logger.info(f"===========================")
+        OccMap.logger.info(f"Occlusion detection complete:")
+        OccMap.logger.info(f"- % occluded: {occ_percentage:.2f}%")
+        OccMap.logger.info(f"===========================\n")
         
         return occ_pcd
