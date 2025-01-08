@@ -9,6 +9,7 @@ import open3d as o3d
 import numpy as np
 import cv2
 import json
+import logging
 
 from scripts.logger import get_logger
 from scripts.bev_generator import BEVGenerator
@@ -70,7 +71,7 @@ class LeafFolder:
         assert nx is not None, "nx is required!"
         assert nz is not None, "nz is required!"
         
-        self.logger = get_logger("leaf-folder")
+        self.logger = get_logger("leaf-folder", level=logging.INFO)
         
         self.src_URI = src_URI
         self.dest_URI = dest_URI

@@ -244,6 +244,7 @@ marcus suggestions
 
 
 - rename occ.py to occ-mask-generator
+- rename data-generator-s3 to bev-mask-generator
 - do we need to pass the camera rotation-matrix to occ-mask-generator?
 - pass camera-rotation-matrix to occ-mask
 - [debug] reduce depth-threshold
