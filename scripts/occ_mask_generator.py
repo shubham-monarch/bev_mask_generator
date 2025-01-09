@@ -19,7 +19,7 @@ class OccMap:
 
     # class-level variables
     logger = get_logger("occlusion_map", level=logging.INFO)
-    DEPTH_THRESHOLD = 0.1
+    DEPTH_THRESHOLD = 0.06
     
     @staticmethod
     def generate_pixel_coordinates(pcd: o3d.t.geometry.PointCloud, 

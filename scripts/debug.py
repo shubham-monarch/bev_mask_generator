@@ -14,7 +14,7 @@ import traceback
 
 from scripts.bev_generator import BEVGenerator
 from scripts.logger import get_logger
-from scripts.occ_map import OcclusionMap
+from scripts.occ_mask_generator import OccMap
 from scripts.data_generator_s3 import DataGeneratorS3, LeafFolder
 
 logger = get_logger("debug")
@@ -234,28 +234,31 @@ if __name__ == "__main__":
 
 
     # # ================================================
-    # # CASE 8: fixing compute_tilt_matrix
+    # # CASE 8: fixing occ-map-generator
     # # ================================================
 
-    pcd_dir = f"debug/frames-4"
+    pcd_dir = f"debug/frames-3"
     
-    seg_masks_dir = f"debug/4/seg-masks"
-    rectified_pcd_dir = f"debug/4/rectified-pcd"
-    left_img_dir = f"debug/4/left-imgs"
-    right_img_dir = f"debug/4/right-imgs"
-    occ_pcd_dir = f"debug/4/occ-pcd"
+    left_img_dir = f"debug/3/left-imgs"
+    right_img_dir = f"debug/3/right-imgs"
+    seg_masks_dir = f"debug/3/seg-masks"
+    pcd_RECTIFIED_dir = f"debug/3/rectified-pcd"
+    pcd_OCC_dir = f"debug/3/occ-pcd"
+    pcd_BEV_3D_dir = f"debug/3/bev-3d-pcd"
 
     os.makedirs(seg_masks_dir, exist_ok=True)
-    os.makedirs(rectified_pcd_dir, exist_ok=True)
+    os.makedirs(pcd_RECTIFIED_dir, exist_ok=True)
     os.makedirs(left_img_dir, exist_ok=True)
     os.makedirs(right_img_dir, exist_ok=True)
-    os.makedirs(occ_pcd_dir, exist_ok=True)
-    
+    os.makedirs(pcd_OCC_dir, exist_ok=True)
+    os.makedirs(pcd_BEV_3D_dir, exist_ok=True)
+
     assert not (os.path.exists(seg_masks_dir) and os.listdir(seg_masks_dir)), f"{seg_masks_dir} must be empty if it exists."
-    assert not (os.path.exists(rectified_pcd_dir) and os.listdir(rectified_pcd_dir)), f"{rectified_pcd_dir} must be empty if it exists."
+    assert not (os.path.exists(pcd_RECTIFIED_dir) and os.listdir(pcd_RECTIFIED_dir)), f"{pcd_RECTIFIED_dir} must be empty if it exists."
     assert not (os.path.exists(left_img_dir) and os.listdir(left_img_dir)), f"{left_img_dir} must be empty if it exists."
     assert not (os.path.exists(right_img_dir) and os.listdir(right_img_dir)), f"{right_img_dir} must be empty if it exists."
-    assert not (os.path.exists(occ_pcd_dir) and os.listdir(occ_pcd_dir)), f"{occ_pcd_dir} must be empty if it exists."
+    assert not (os.path.exists(pcd_OCC_dir) and os.listdir(pcd_OCC_dir)), f"{pcd_OCC_dir} must be empty if it exists."
+    assert not (os.path.exists(pcd_BEV_3D_dir) and os.listdir(pcd_BEV_3D_dir)), f"{pcd_BEV_3D_dir} must be empty if it exists."
     
     success_count = 0
     total_count = 0
@@ -272,26 +275,38 @@ if __name__ == "__main__":
     # random.shuffle(pcd_files)
     pcd_files.sort()
 
-    bev_generator = BEVGenerator(logging_level=logging.WARNING)
-    occ_map_generator = OcclusionMap()
+    # occ_map_generator = OcclusionMap()
 
-    
+    void_counter = []
 
     for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
         try:
             
-            logger.warning(f"================================================")
-            logger.warning(f"IDX: {idx}")
-            logger.warning(f"================================================\n")
-            
             # if idx > 0:
             #     break
             # pcd_path = random.choice(pcd_files)
+            # pcd_path = "debug/frames-3/frame-1240/left-segmented-labelled.ply"
+            # pcd_path = "debug/frames-4/frame-608/left-segmented-labelled.ply"
+            
+            # case -> heavy occlusion
+            # pcd_path = "debug/frames-4/frame-568/left-segmented-labelled.ply"
+            
+            logger.warning(f"===========================")
+            logger.warning(f"{idx} => {pcd_path}")
+            logger.warning(f"===========================\n")
             
             # read pcd
-            pcd_input = o3d.t.io.read_point_cloud(pcd_path)
+            PCD_INPUT = o3d.t.io.read_point_cloud(pcd_path)
+            PCD = PCD_INPUT.clone()
             
-            
+            # camera-matrix 
+            CAMERA_INTRINSIC_MATRIX = np.array([[1090.536, 0, 954.99],
+                                       [0, 1090.536, 523.12],
+                                       [0, 0, 1]], dtype=np.float32)
+            # crop-bb 
+            # CROP_BB = {'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5}
+            CROP_BB = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 1.5, 'z_max': 6.5}
+
             # saving left / right imgs
             img_dir = os.path.dirname(pcd_path)
             left_src = os.path.join(img_dir, "left.jpg")
@@ -303,59 +318,53 @@ if __name__ == "__main__":
             shutil.copy(left_src, left_dest)
             shutil.copy(right_src, right_dest)
 
-            # saving rectified pcd
-            pcd_rectified = bev_generator.get_tilt_rectified_pcd(pcd_input)
-            path_pcd_rectified = os.path.join(rectified_pcd_dir, f"rectified-pcd-{idx}.ply")
-            o3d.t.io.write_point_cloud(path_pcd_rectified, pcd_rectified)
-
-            # camera-matrix 
-            camera_matrix = np.array([[1090.536, 0, 954.99],
-                                       [0, 1090.536, 523.12],
-                                       [0, 0, 1]], dtype=np.float32)
-            # crop-bb 
-            CROP_BB = {'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5}
-
-            # occ-map generation
-            bev_pcd = bev_generator.generate_BEV(pcd_rectified)
-            pcd_downsampled = bev_generator.get_downsampled_pcd()
-            camera_projection_matrix = bev_generator.get_updated_camera_extrinsics(pcd_input)
-            
-            occ_pcd = OcclusionMap.get_occ_mask(pcd = pcd_downsampled, 
-                                                     camera_matrix = camera_matrix, 
-                                                     bb = CROP_BB,
-                                                     camera_projection_matrix = camera_projection_matrix)
-            path_occ_pcd = os.path.join(occ_pcd_dir, f"occ-pcd-{idx}.ply")
-            o3d.t.io.write_point_cloud(path_occ_pcd, occ_pcd)
-
-            # break
-            # generating GT-seg-mask
-            # crop_bb = {'x_min': -2.5s, 'x_max': 2.5, 'z_min': 0, 'z_max': 5}
-            seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(pcd_input, 
+            # initialize bev_generator
+            bev_generator = BEVGenerator(logging_level=logging.ERROR)
+            seg_mask_mono , seg_mask_rgb = bev_generator.pcd_to_seg_mask(PCD, 
                                                                           nx = 256, nz = 256, 
                                                                           bb = CROP_BB,
                                                                           yaml_path="config/Mavis.yaml")
             
-            seg_mask_mono = np.flip(seg_mask_mono, axis=0)
-            seg_mask_rgb = np.flip(seg_mask_rgb, axis=0)
+            # seg_mask_mono = np.flip(seg_mask_mono, axis=0)
+            # seg_mask_rgb = np.flip(seg_mask_rgb, axis=0)
 
             # saving seg-mask-rgb
             path_seg_mask_rgb = os.path.join(seg_masks_dir, f"seg-mask-rgb-{idx}.png")
             cv2.imwrite(path_seg_mask_rgb, seg_mask_rgb)
 
+        
+            # saving 3D BEV-pcd
+            pcd_BEV_3D = bev_generator.get_pcd_BEV_3D()
+            path_pcd_BEV_3D = os.path.join(pcd_BEV_3D_dir, f"pcd-BEV-3D-{idx}.ply")
+            o3d.t.io.write_point_cloud(path_pcd_BEV_3D, pcd_BEV_3D)
+
+
+            # occ-map generation
+            BEV_3D_PCD = bev_generator.get_pcd_BEV_3D()
             
-            # plotting GT-seg-mask
-            # plot_segmentation_classes(seg_mask_mono, output_path)
-            # plot_segmentation_classes(seg_mask_mono)
+            # 4x4 camera extrinsic matrix [R | t]
+            CAMERA_EXTRINIC_MATRIX = bev_generator.get_updated_camera_extrinsics() 
+            # CAMERA_EXTRINIC_MATRIX = np.eye(4)
+            pcd_OCC = OccMap.get_occ_pcd(pcd = BEV_3D_PCD, 
+                                          K = CAMERA_INTRINSIC_MATRIX,
+                                          P = CAMERA_EXTRINIC_MATRIX[:3, :],
+                                          bb = CROP_BB)
+            
+            # saving occ-pcd
+            path_pcd_OCC = os.path.join(pcd_OCC_dir, f"pcd-OCC-{idx}.ply")
+            o3d.t.io.write_point_cloud(path_pcd_OCC, pcd_OCC)
+
+            
+            # # plotting GT-seg-mask
+            # # plot_segmentation_classes(seg_mask_mono, output_path)
+            # # plot_segmentation_classes(seg_mask_mono)
              
         except Exception as e:
             logger.error(f"================================================")
             logger.error(f"Error processing {pcd_path} with error {e}")
-            logger.error("Traceback:")
-            logger.error(traceback.format_exc())
             logger.error(f"================================================\n")
     
-
-
+  
     # ================================================
     # CASE 7: testing BEVGenerator
     # ================================================

@@ -252,14 +252,14 @@ fix bev-generator
 - remove invalid points (project to [1080 * 1920] image) before generating bev-mask
 - don't downsample navigable / canopy
 - does removing the pcd_navigable / canopy downsampling reduce the black patches in seg-mask?
-- fix multiple tilt-rectification in bev_generator
++ fix multiple tilt-rectification in bev_generator
 - why are there no obstacles in seg-mask-mono if 63 are present in downsampled_pcd?
 - why does seg-mask-mono have label 255? 
 - check if camera / pointcloud is tilted in the colmap viewer
 - compare rectified and non-rectified pcd in the colmap viewer
 - create unknown class with priority 99
 - support for rectangular seg-masks
-- still getting z-out of bounds error while generating bev-masks
+- still getting intermittent z-out of bounds error while generating bev-masks
 
 ======================
 fix occ-mask-generator
@@ -284,5 +284,5 @@ fix occ-mask-generator
 - why are the closest vine poles always getting occluded? 
 - everything with z < 1.5m is being marked as occluded
 + would be a good idea to change bev-mask-bounds --> [z_min: 1.5m]
-
+- add occ-pcd to occ-mask coversion
 
