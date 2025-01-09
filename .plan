@@ -89,7 +89,7 @@ aws based bev-generator
 + index to track processed files
 + add index.json
 + ability to resume 
-- data field agnostic resumption [i.e. left / right / mono / seg-masks-mono / seg-masks-rgb/ occlusion-mask]
+- data field agnostic resumption [i.e. left / right / mono / seg-masks-mono / seg-masks-rgb / occlusion-mask]
 - upload updated index to s3 in every run
 + [util] count number of files in s3 bev-dataset
 
@@ -262,6 +262,16 @@ fix bev-generator
 - still getting intermittent z-out of bounds error while generating bev-masks
 
 ======================
+demo
+======================
+- show occ mask for uncropped points
+- show pcd to image projection[(1080,1920), (640,720)]
+- need option to pass rectangular seg-mask
+- dairy camera feed quality sucks
+- show mccarty / mineral-king
+- added 450 frames
+
+======================
 fix occ-mask-generator
 ======================
 + rename occ.py to occ-mask-generator
@@ -276,13 +286,26 @@ fix occ-mask-generator
 + depth is negative for [debug/frames-3/frame-1190/left-segmented-labelled.ply]
 + why is adding camera-extrinsics shoooting up occ-points %? 
 + add percentage of valid projections i.e. x < h and y < w
-- why is the above percentage so low? 
++ why is the above percentage so low? 
 + use colored projection
 + swap (x,y)?
 - check K using zed-sdk
 - tabulate metrics for all the frames in a leaf-folder
-- why are the closest vine poles always getting occluded? 
-- everything with z < 1.5m is being marked as occluded
+
 + would be a good idea to change bev-mask-bounds --> [z_min: 1.5m]
 - add occ-pcd to occ-mask coversion
 
+
+- why are the closest vine poles always getting occluded? 
+- everything with z < 1.5m is being marked as occluded
+- project unrectified pcd to check for the z < 1.5 m issue 
+- establish occ-map correspondance with pointcloud-to-image projection with z_min = 0
+- check effect of passing cam-extrinsics
+- verify cam-extrinsics calculation is correct
+- check occ-map-generation logic, is index tracking needed 
+- compare with cam-intrinsics set to sbevnet values
+- why is the optical axis parallel to the ground? 
+- log R in axis-angles
+
+- shouldn't the seg-mask be straight even if the camera is tilted? 
+- compare the variation in ground tilt for all the frames in a leaf folder
