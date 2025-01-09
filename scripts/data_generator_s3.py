@@ -71,7 +71,7 @@ class LeafFolder:
         assert nx is not None, "nx is required!"
         assert nz is not None, "nz is required!"
         
-        self.logger = get_logger("leaf-folder", level=logging.INFO)
+        self.logger = get_logger("leaf-folder", level=logging.WARNING)
         
         self.src_URI = src_URI
         self.dest_URI = dest_URI
@@ -86,10 +86,10 @@ class LeafFolder:
         self.nx = nx
         self.nz = nz
         
-        self.logger.warning(f"=======================")
-        self.logger.warning(f"src_URI: {self.src_URI}")
-        self.logger.warning(f"dest_URI: {self.dest_URI}")
-        self.logger.warning(f"=======================\n")
+        self.logger.info(f"=======================")
+        self.logger.info(f"src_URI: {self.src_URI}")
+        self.logger.info(f"dest_URI: {self.dest_URI}")
+        self.logger.info(f"=======================\n")
 
         self.logger.info(f"=======================")
         self.logger.info(f"color_map: {self.color_map}")
@@ -115,7 +115,7 @@ class LeafFolder:
             return False
 
     def download_file(self, file_URI: str) -> str:
-        ''' Download file from S3 to tmp-files folder'''
+        ''' Download file from S3 to tmp-files folder and return the local path'''
         
         try:
             bucket_name, key = file_URI.replace("s3://", "").split("/", 1)
@@ -302,13 +302,19 @@ class DataGeneratorS3:
         assert dest_folder is not None, "dest_folder is required!"
         return src_uri.replace("occ-dataset", dest_folder, 1)
         
-   
-    def get_leaf_folders(self) -> List[str]:
-        """Get all leaf folders URI inside the given S3 URIs"""
+    @staticmethod
+    def get_leaf_folders(src_URIs: List[str]) -> List[str]:
+        """Get all leaf folders URI inside the given S3 URIs
         
+        Args:
+            src_URIs: List of S3 URIs to search for leaf folders
+            
+        Returns:
+            List of S3 URIs for all leaf folders found
+        """
         all_leaf_uris = []
         
-        for s3_uri in self.src_URIs:
+        for s3_uri in src_URIs:
             # Parse S3 URI to get bucket and prefix
             s3_parts = s3_uri.replace("s3://", "").split("/", 1)
             bucket_name = s3_parts[0]
@@ -365,7 +371,8 @@ class DataGeneratorS3:
         self.logger.info(f"STARTING BEV-S3-DATASET GENERATION PIPELINE...")
         self.logger.info(f"=======================\n")
 
-        leaf_URIs = self.get_leaf_folders()
+        # leaf_URIs = self.get_leaf_folders(self.src_URIs)
+        leaf_URIs = DataGeneratorS3.get_leaf_folders(self.src_URIs)
         random.shuffle(leaf_URIs)
         
         for idx, src_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc=f"Processing leaf URIs\n"):    
