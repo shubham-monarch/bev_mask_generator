@@ -12,7 +12,7 @@ import json
 import logging
 
 from scripts.logger import get_logger
-from scripts.bev_generator import BEVGenerator
+from scripts.bev_mask_generator import BEVGenerator
 
 
 class JSONIndex:
