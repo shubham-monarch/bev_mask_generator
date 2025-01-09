@@ -10,6 +10,7 @@ import logging
 import cv2
 from typing import Dict, Tuple, Union, List
 import matplotlib.pyplot as plt
+import torch
 
 from scripts.logger import get_logger
 from scripts.helpers import crop_pcd
@@ -237,6 +238,8 @@ class OccMap:
         assert K.shape == (3, 3), "camera_intrinsic_matrix must be a 3x3 matrix"
         assert P.shape == (3, 4), "camera_extrinsic_matrix must be a 3x4 matrix"
 
+        
+        
         OccMap.logger.info(f"===========================")
         OccMap.logger.info(f"P: \n{P}")
         OccMap.logger.info(f"===========================\n")
@@ -285,3 +288,158 @@ class OccMap:
 
         OccMap.add_mask_color_to_pcd(pcd_cropped, [hidden_mask, bound_mask], [hidden_color, bound_color])
         return pcd_cropped
+
+    @staticmethod
+    def visualize_matches(left_img: np.ndarray,
+                     right_img: np.ndarray,
+                     kp1: List[cv2.KeyPoint],
+                     kp2: List[cv2.KeyPoint],
+                     good_matches: List[cv2.DMatch],
+                     window_name: str = "Stereo Matches",
+                     wait_key: bool = True) -> np.ndarray:
+        """Visualize matching keypoints between stereo image pair.
+        
+        Args:
+            left_img: Left stereo image
+            right_img: Right stereo image
+            kp1: Keypoints detected in left image
+            kp2: Keypoints detected in right image
+            good_matches: List of good matches between keypoints
+            window_name: Name of display window
+            wait_key: Whether to wait for key press
+            
+        Returns:
+            np.ndarray: Visualization image showing matches
+        """
+        try:
+            good_matches = good_matches[:50]
+            # create match visualization image
+            match_img = cv2.drawMatches(left_img, kp1,
+                                      right_img, kp2,
+                                      good_matches, None,
+                                      flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+            
+            # draw horizontal lines to help verify rectification
+            h, w = left_img.shape[:2]
+            line_interval = h // 50
+            for y in range(0, h, line_interval):
+                cv2.line(match_img, (0, y), (w*2, y), (0, 255, 0), 1)
+                
+            # display image
+            cv2.imshow(window_name, match_img)
+            if wait_key:
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                
+            return match_img
+            
+        except Exception as e:
+            OccMap.logger.error(f"===========================")
+            OccMap.logger.error(f"Error visualizing matches: {str(e)}")
+            OccMap.logger.error(f"===========================\n")
+            raise
+
+    @staticmethod
+    def is_rectified(left_img: np.ndarray, 
+                     right_img: np.ndarray,
+                     num_keypoints: int = 1000,
+                     epipolar_threshold: float = 1.0,
+                     visualize: bool = True) -> Tuple[bool, float]:
+        """Check if a stereo image pair is rectified by analyzing epipolar geometry.
+        
+        In rectified images, corresponding points should lie on the same horizontal scanline.
+        This method:
+        1. Detects keypoints using ORB detector in both images
+        2. Finds matches between keypoints using Brute Force matcher
+        3. Calculates the vertical disparity between matched points
+        4. If average vertical disparity is below threshold, considers images rectified
+        
+        Args:
+            left_img: Left stereo image
+            right_img: Right stereo image
+            num_keypoints: Number of keypoints to detect (default: 1000)
+            epipolar_threshold: Maximum allowed average vertical disparity in pixels (default: 1.0)
+            visualize: Whether to visualize the matches (default: True)
+            
+        Returns:
+            Tuple[bool, float]: (is_rectified, average_vertical_disparity)
+        """
+        try:
+            # convert images to grayscale if needed
+            if len(left_img.shape) == 3:
+                left_gray = cv2.cvtColor(left_img, cv2.COLOR_BGR2GRAY)
+                right_gray = cv2.cvtColor(right_img, cv2.COLOR_BGR2GRAY)
+            else:
+                left_gray = left_img.copy()
+                right_gray = right_img.copy()
+                # convert back to BGR for visualization
+                left_img = cv2.cvtColor(left_img, cv2.COLOR_GRAY2BGR)
+                right_img = cv2.cvtColor(right_img, cv2.COLOR_GRAY2BGR)
+                
+            # verify images have same dimensions
+            if left_gray.shape != right_gray.shape:
+                raise ValueError("input images must have same dimensions")
+                
+            # initialize ORB detector
+            orb = cv2.ORB_create(nfeatures=num_keypoints)
+            
+            # detect keypoints and compute descriptors
+            kp1, des1 = orb.detectAndCompute(left_gray, None)
+            kp2, des2 = orb.detectAndCompute(right_gray, None)
+            
+            if len(kp1) < 10 or len(kp2) < 10:
+                raise ValueError("not enough keypoints detected in images")
+                
+            # create BFMatcher and match descriptors
+            bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+            matches = bf.match(des1, des2)
+            
+            # sort matches by distance
+            matches = sorted(matches, key=lambda x: x.distance)
+            
+            if len(matches) < 10:
+                raise ValueError("not enough good matches found between images")
+                
+            # calculate vertical disparities
+            vertical_disparities = []
+            good_matches = []
+            
+            for match in matches:
+                # get coordinates of matched keypoints
+                pt1 = kp1[match.queryIdx].pt
+                pt2 = kp2[match.trainIdx].pt
+                
+                # calculate vertical disparity
+                vertical_disparity = abs(pt1[1] - pt2[1])
+                
+                # only keep matches with reasonable vertical disparity
+                if vertical_disparity < 50:  # filter out obvious outliers
+                    vertical_disparities.append(vertical_disparity)
+                    good_matches.append(match)
+            
+            if len(vertical_disparities) < 10:
+                raise ValueError("not enough valid matches after filtering")
+                
+            avg_vertical_disparity = np.mean(vertical_disparities)
+            is_rectified = avg_vertical_disparity < epipolar_threshold
+            
+            # visualize matches if requested
+            if visualize:
+                OccMap.visualize_matches(left_img, right_img, kp1, kp2, good_matches[:50])
+            
+            # log results
+            OccMap.logger.info(f"===========================")
+            OccMap.logger.info(f"Rectification check:")
+            OccMap.logger.info(f"- number of keypoints: {len(kp1)}/{len(kp2)}")
+            OccMap.logger.info(f"- number of good matches: {len(good_matches)}")
+            OccMap.logger.info(f"- average vertical disparity: {avg_vertical_disparity:.2f} pixels")
+            OccMap.logger.info(f"- is rectified: {is_rectified}")
+            OccMap.logger.info(f"===========================\n")
+            
+            return is_rectified, avg_vertical_disparity
+            
+        except Exception as e:
+            OccMap.logger.error(f"===========================")
+            OccMap.logger.error(f"Error checking rectification: {str(e)}")
+            OccMap.logger.error(f"===========================\n")
+            raise
