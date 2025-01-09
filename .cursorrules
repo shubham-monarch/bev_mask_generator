@@ -12,3 +12,4 @@
 - use meaningful logging levels to explain "what" went wrong
 - use stack-traces to explain "where" the error occurred
 - do not use logging.debug
+- use only small cases for comments

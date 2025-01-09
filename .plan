@@ -219,7 +219,7 @@ evaluation infrastructure
 
 
 ======================
-marcus suggestions
+training
 ======================
 - warm-up + cool-down 
 - pytorch lightening
@@ -235,6 +235,12 @@ marcus suggestions
 + assign highest-priority to occ-mask
 - check occ-mask integration in sbevnet
 
+
+======================
+sbevnet
+======================
+- pass unequal x and z-ranges
+- increase z and decrease x
 
 
 ======================
@@ -252,15 +258,31 @@ fix bev-generator
 - check if camera / pointcloud is tilted in the colmap viewer
 - compare rectified and non-rectified pcd in the colmap viewer
 - create unknown class with priority 99
+- support for rectangular seg-masks
+- still getting z-out of bounds error while generating bev-masks
 
 ======================
 fix occ-mask-generator
 ======================
-- rename occ.py to occ-mask-generator
-- rename data-generator-s3 to bev-mask-generator
-- do we need to pass the camera rotation-matrix to occ-mask-generator?
-- pass camera-rotation-matrix to occ-mask
-- [debug] reduce depth-threshold
++ rename occ.py to occ-mask-generator
++ rename data-generator-s3 to bev-mask-generator
++ do we need to pass the camera rotation-matrix to occ-mask-generator?
++ pass camera-rotation-matrix to occ-mask
++ [debug] reduce depth-threshold
 - [debug] is occ-detection working for uncropped points?
 - [debug] visible i.e. non-occluded should project nicely on the image
-- compare pcd to image projection with / without camera extriniscs
++ compare pcd to image projection with / without camera extriniscs
++ cropped vs non-cropped projection
++ depth is negative for [debug/frames-3/frame-1190/left-segmented-labelled.ply]
++ why is adding camera-extrinsics shoooting up occ-points %? 
++ add percentage of valid projections i.e. x < h and y < w
+- why is the above percentage so low? 
++ use colored projection
++ swap (x,y)?
+- check K using zed-sdk
+- tabulate metrics for all the frames in a leaf-folder
+- why are the closest vine poles always getting occluded? 
+- everything with z < 1.5m is being marked as occluded
++ would be a good idea to change bev-mask-bounds --> [z_min: 1.5m]
+
+
