@@ -482,7 +482,7 @@ class OccMap:
             OccMap.logger.error(f"===========================\n")
             raise
 
-    
+
     @staticmethod
     def get_stereo_disparity(left_image: np.ndarray, right_image: np.ndarray) -> np.ndarray:
         """Compute disparity map for stereo image pair.
@@ -516,52 +516,35 @@ class OccMap:
         )
 
         disparity: np.ndarray = stereo_sgbm.compute(img_L, img_R).astype(np.float32) / 16.0
- 
-        # filtering invalid disparities while maintaining dimensions
-        mask: np.ndarray = (disparity >= min_disp) & (disparity <= max_disp)
         
-        # create a copy of the disparity map to avoid modifying the original data
-        filtered_disparity: np.ndarray = disparity.copy()
+        # set invalid disparity values to NaN
+        valid_disparity_mask: np.ndarray = (disparity >= min_disp) & (disparity <= max_disp)
+        disparity[~valid_disparity_mask] = np.nan
+
+        OccMap.logger.info(f"===========================")
+        OccMap.logger.info(f"nan values: {np.isnan(disparity).sum()} |"
+                           f" {np.isnan(disparity).sum() / disparity.size:.2f}%")
+        OccMap.logger.info(f"===========================\n")
         
-        # replace invalid values (NaN or values outside the valid range) with a specific value
-        # here we use the minimum valid disparity value, but you can choose another strategy
-        min_valid_disparity: float = disparity[mask].min() if mask.any() else 0
-        filtered_disparity[~mask] = min_valid_disparity
+        return disparity
+
+    # @staticmethod       
+    # def get_stereo_pcd(left_img: np.ndarray, right_img: np.ndarray) -> o3d.t.geometry.PointCloud:
+
+    #     disparity: np.ndarray = OccMap.get_stereo_disparity(left_img, right_img)
         
-        # # plot the distribution of filtered disparity values
-        # import matplotlib.pyplot as plt
+    #     nan_count: int = np.isnan(disparity).sum()
         
-        # plt.figure(figsize=(10, 5))
-        # plt.hist(filtered_disparity[mask].ravel(), bins=50, color='blue', alpha=0.7)
-        # plt.title('Filtered Disparity Distribution')
-        # plt.xlabel('Disparity Value')
-        # plt.ylabel('Frequency')
-        # plt.grid(axis='y', alpha=0.75)
-        # plt.show()
+    #     OccMap.logger.info(f"===========================")
+    #     OccMap.logger.info(f"Count of NaN values in disparity: {nan_count}")
+    #     OccMap.logger.info(f"===========================\n")
 
 
-        # OccMap.logger.info(f"===========================")
-        # OccMap.logger.info(f"Disparity map:")
-        # OccMap.logger.info(f"- shape: {filtered_disparity.shape}")
-        # OccMap.logger.info(f"- min: {filtered_disparity.min():.2f}")
-        # OccMap.logger.info(f"- max: {filtered_disparity.max():.2f}")
-        # OccMap.logger.info(f"- % valid: {100 * mask.sum() / filtered_disparity.size:.2f}%")
-        # OccMap.logger.info(f"===========================\n")
-
-        # normalize the filtered disparity map for visualization
-        disp_norm: np.ndarray = cv2.normalize(filtered_disparity, None, 0, 255, 
-                                             cv2.NORM_MINMAX).astype(np.uint8)
+    #     # # convert disparity to depth
+    #     # depth_map: np.ndarray = 1 / (stereo_disparity + 1e-6)
         
-        # apply a colormap for better visualization
-        colormap: np.ndarray = cv2.cvtColor(disp_norm, cv2.COLOR_GRAY2BGR)
-        
-        
-        # combine the left image, right image, and the disparity map for display
-        # combined_image: np.ndarray = np.hstack((img_L, colormap, img_R))
-        combined_image: np.ndarray = np.hstack((img_L, colormap))
+    #     # # create point cloud
+    #     # pcd: o3d.t.geometry.PointCloud = o3d.t.geometry.PointCloud()
 
-        # cv2.imshow("Left Image and Disparity Map", combined_image)
-        # cv2.waitKey(0)  # Wait for a key press to close the window
-        # cv2.destroyAllWindows()
-
-        return filtered_disparity
+        
+    #     # pass
