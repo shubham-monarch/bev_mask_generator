@@ -11,6 +11,7 @@ import cv2
 from typing import Dict, Tuple, Union, List
 import matplotlib.pyplot as plt
 import torch
+import traceback
 
 from scripts.logger import get_logger
 from scripts.helpers import crop_pcd
@@ -528,23 +529,120 @@ class OccMap:
         
         return disparity
 
-    # @staticmethod       
-    # def get_stereo_pcd(left_img: np.ndarray, right_img: np.ndarray) -> o3d.t.geometry.PointCloud:
-
-    #     disparity: np.ndarray = OccMap.get_stereo_disparity(left_img, right_img)
+    @staticmethod       
+    def get_stereo_pcd(left_img: np.ndarray, right_img: np.ndarray, 
+                       K: np.ndarray,
+                       baseline: float,
+                       final_h: int, final_w: int) -> o3d.t.geometry.PointCloud:
+        """Generate point cloud from stereo image pair.
         
-    #     nan_count: int = np.isnan(disparity).sum()
-        
-    #     OccMap.logger.info(f"===========================")
-    #     OccMap.logger.info(f"Count of NaN values in disparity: {nan_count}")
-    #     OccMap.logger.info(f"===========================\n")
+        Args:
+            left_img: Left stereo image --> (1080, 1920)
+            right_img: Right stereo image --> (1080, 1920)
+            K: Camera intrinsic matrix --> (3, 3)
+            baseline: Baseline distance between stereo cameras in meters --> 0.12
+            final_h: Height of the final image --> 640
+            final_w: Width of the final image --> 480
+            
+        Returns:
+            o3d.t.geometry.PointCloud: Point cloud with colors
+        """
 
+        assert left_img.shape == (1080,1920,3), f"Left image shape must be (1080,1920,3) but is {left_img.shape}"
+        assert right_img.shape == (1080,1920,3), f"Right image shape must be (1080,1920,3) but is {right_img.shape}"
 
-    #     # # convert disparity to depth
-    #     # depth_map: np.ndarray = 1 / (stereo_disparity + 1e-6)
+        # resize input images to match final dimensions
+        resized_L = cv2.resize(left_img, (final_w, final_h))
+        resized_R = cv2.resize(right_img, (final_w, final_h))
         
-    #     # # create point cloud
-    #     # pcd: o3d.t.geometry.PointCloud = o3d.t.geometry.PointCloud()
+        # adjust camera intrinsics for resized images
+        scale_x = final_w / left_img.shape[1]
+        scale_y = final_h / left_img.shape[0]
+
+        # scale camera intrinsics
+        K_scaled = K.copy()
+        K_scaled[0, 0] *= scale_x
+        K_scaled[1, 1] *= scale_y
+        K_scaled[0, 2] *= scale_x
+        K_scaled[1, 2] *= scale_y
+
+        # get disparity map
+        disparity: np.ndarray = OccMap.get_stereo_disparity(resized_L, resized_R)
+
+        assert disparity.shape == resized_L.shape[:2], "Disparity map shape does not match resized left image"
+        
+        nan_count: int = np.isnan(disparity).sum()
+        OccMap.logger.info(f"===========================")
+        OccMap.logger.info(f"Count of NaN values in disparity: {nan_count}")
+        OccMap.logger.info(f"===========================\n")
+
+        # replace nan values with 0 for depth calculation
+        disparity = np.nan_to_num(disparity, nan=0.0)
+
+        # get image dimensions
+        h, w = disparity.shape
+        
+        assert (h, w) == (640, 480), "Disparity map shape does not match final dimensions"
+        
+        # create mesh grid for pixel coordinates
+        v, u = np.mgrid[0:h, 0:w]
+        
+        # compute 3d points
+        focal_length: float = K_scaled[0, 0]
+        
+        # avoid division by zero in depth calculation
+        mask: np.ndarray = disparity > 0
+        depth: np.ndarray = np.zeros_like(disparity)
+        depth[mask] = (focal_length * baseline) / disparity[mask]
+        
+        # calculate 3D coordinates
+        x: np.ndarray = (u - K_scaled[0, 2]) * depth / focal_length
+        y: np.ndarray = (v - K_scaled[1, 2]) * depth / focal_length
+        z: np.ndarray = depth
+
+        # stack coordinates
+        points: np.ndarray = np.stack([x, y, z], axis=-1)
+        
+        # filter out points with zero depth
+        valid_points_mask: np.ndarray = depth > 0
+        points = points[valid_points_mask]
+        
+        # get colors from resized left image
+        colors: np.ndarray = resized_L.astype(np.uint8)
+        colors = colors[valid_points_mask]
+
+        # create open3d tensor pointcloud
+        pcd = o3d.t.geometry.PointCloud()
+        pcd.point.positions = o3d.core.Tensor(points.astype(np.float32))
+        pcd.point.colors = o3d.core.Tensor(colors.astype(np.uint8))
+
+        OccMap.logger.info(f"===========================")
+        OccMap.logger.info(f"Generated pointcloud with {len(points)} points")
+        OccMap.logger.info(f"===========================\n")
+        
+        return pcd
+
+    @staticmethod
+    def combine_pcds(pcd_1: o3d.t.geometry.PointCloud, pcd_2: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
+        """Combine two point clouds."""
 
         
-    #     # pass
+
+        # stack positions
+        position_tensors: List[np.ndarray] = [pcd_1.point['positions'].numpy(), pcd_2.point['positions'].numpy()]
+        stacked_positions: o3c.Tensor = o3c.Tensor(np.vstack(position_tensors), dtype=o3c.Dtype.Float32)
+        
+        # set colors for pcd_1 to yellow and pcd_2 to red
+        color_tensors: List[np.ndarray] = [np.tile(np.array([255, 255, 0]), (pcd_1.point['positions'].shape[0], 1)),
+                                            np.tile(np.array([255, 0, 0]), (pcd_2.point['positions'].shape[0], 1))]
+        stacked_colors: o3c.Tensor = o3c.Tensor(np.vstack(color_tensors), dtype=o3c.Dtype.UInt8)
+
+        # Create a unified point cloud
+        map_to_tensors: Dict[str, o3c.Tensor] = {
+            'positions': stacked_positions,
+            'colors': stacked_colors        
+        }
+
+        # Create a unified point cloud
+        combined_pcd: o3d.t.geometry.PointCloud = o3d.t.geometry.PointCloud(map_to_tensors)    
+        return combined_pcd
