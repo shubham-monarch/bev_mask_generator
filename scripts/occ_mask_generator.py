@@ -15,6 +15,44 @@ import torch
 from scripts.logger import get_logger
 from scripts.helpers import crop_pcd
 
+
+class StereoImg:
+    """Class for storing stereo images and their corresponding camera parameters."""
+    def __init__(self, left_img: np.ndarray, right_img: np.ndarray, K: np.ndarray, P: np.ndarray):
+        self.left_img = left_img
+        self.right_img = right_img
+        self.K = K
+        self.P = P
+
+          # # distortion params
+        # k1 = 0.0
+        # k2 = 0.0
+        # p1 = 0.0
+        # p2 = 0.0
+        # distortion = np.array([k1, k2, p1, p2])
+
+
+        # # camera intrinsic matrix
+        # K = np.array([[1090.536, 0, 954.99],
+        #                 [0, 1090.536, 523.12],
+        #                 [0, 0, 1]], dtype=np.float32)
+
+
+        # # stereo-rectification
+        # # h, w = left_image.shape[:2]
+        # R = np.eye(3)
+        # baseline = -0.11972
+        # t = np.array([baseline,0,0])
+
+    def get_K(self) -> np.ndarray:
+        pass
+    
+    def get_P(self) -> np.ndarray:
+        pass
+    
+    def get_stereo_pcd(self) -> o3d.t.geometry.PointCloud:
+        pass
+
 class OccMap:
     """Class for generating occlusion maps from point clouds using depth buffer approach."""
 
@@ -443,3 +481,87 @@ class OccMap:
             OccMap.logger.error(f"Error checking rectification: {str(e)}")
             OccMap.logger.error(f"===========================\n")
             raise
+
+    
+    @staticmethod
+    def get_stereo_disparity(left_image: np.ndarray, right_image: np.ndarray) -> np.ndarray:
+        """Compute disparity map for stereo image pair.
+        
+        Args:
+            left_image: Left stereo image
+            right_image: Right stereo image
+            
+        Returns:
+            np.ndarray: Disparity map
+        """
+        
+        img_L: np.ndarray = cv2.resize(left_image, (480, 640))
+        img_R: np.ndarray = cv2.resize(right_image, (480, 640))
+
+        window_size: int = 3
+        min_disp: int = -2
+        max_disp: int = 32
+
+        stereo_sgbm = cv2.StereoSGBM_create(
+            minDisparity=min_disp,
+            numDisparities=max_disp - min_disp,
+            blockSize=window_size,
+            P1=8 * 3 * window_size**2,
+            P2=32 * 3 * window_size**2,
+            disp12MaxDiff=1,
+            uniquenessRatio=10,
+            speckleWindowSize=100,
+            speckleRange=32,
+            mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
+        )
+
+        disparity: np.ndarray = stereo_sgbm.compute(img_L, img_R).astype(np.float32) / 16.0
+ 
+        # filtering invalid disparities while maintaining dimensions
+        mask: np.ndarray = (disparity >= min_disp) & (disparity <= max_disp)
+        
+        # create a copy of the disparity map to avoid modifying the original data
+        filtered_disparity: np.ndarray = disparity.copy()
+        
+        # replace invalid values (NaN or values outside the valid range) with a specific value
+        # here we use the minimum valid disparity value, but you can choose another strategy
+        min_valid_disparity: float = disparity[mask].min() if mask.any() else 0
+        filtered_disparity[~mask] = min_valid_disparity
+        
+        # # plot the distribution of filtered disparity values
+        # import matplotlib.pyplot as plt
+        
+        # plt.figure(figsize=(10, 5))
+        # plt.hist(filtered_disparity[mask].ravel(), bins=50, color='blue', alpha=0.7)
+        # plt.title('Filtered Disparity Distribution')
+        # plt.xlabel('Disparity Value')
+        # plt.ylabel('Frequency')
+        # plt.grid(axis='y', alpha=0.75)
+        # plt.show()
+
+
+        # OccMap.logger.info(f"===========================")
+        # OccMap.logger.info(f"Disparity map:")
+        # OccMap.logger.info(f"- shape: {filtered_disparity.shape}")
+        # OccMap.logger.info(f"- min: {filtered_disparity.min():.2f}")
+        # OccMap.logger.info(f"- max: {filtered_disparity.max():.2f}")
+        # OccMap.logger.info(f"- % valid: {100 * mask.sum() / filtered_disparity.size:.2f}%")
+        # OccMap.logger.info(f"===========================\n")
+
+        # normalize the filtered disparity map for visualization
+        disp_norm: np.ndarray = cv2.normalize(filtered_disparity, None, 0, 255, 
+                                             cv2.NORM_MINMAX).astype(np.uint8)
+        
+        # apply a colormap for better visualization
+        colormap: np.ndarray = cv2.cvtColor(disp_norm, cv2.COLOR_GRAY2BGR)
+        
+        
+        # combine the left image, right image, and the disparity map for display
+        # combined_image: np.ndarray = np.hstack((img_L, colormap, img_R))
+        combined_image: np.ndarray = np.hstack((img_L, colormap))
+
+        # cv2.imshow("Left Image and Disparity Map", combined_image)
+        # cv2.waitKey(0)  # Wait for a key press to close the window
+        # cv2.destroyAllWindows()
+
+        return filtered_disparity
