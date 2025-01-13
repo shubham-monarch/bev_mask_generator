@@ -296,8 +296,8 @@ fix occ-mask-generator
 - add occ-pcd to occ-mask coversion
 
 
-- why are the closest vine poles always getting occluded? 
-- everything with z < 1.5m is being marked as occluded
+
+
 - project unrectified pcd to check for the z < 1.5 m issue 
 - establish occ-map correspondance with pointcloud-to-image projection with z_min = 0
 - check effect of passing cam-extrinsics
@@ -305,7 +305,34 @@ fix occ-mask-generator
 - check occ-map-generation logic, is index tracking needed 
 - compare with cam-intrinsics set to sbevnet values
 - why is the optical axis parallel to the ground? 
-- log R in axis-angles
 
 - shouldn't the seg-mask be straight even if the camera is tilted? 
 - compare the variation in ground tilt for all the frames in a leaf folder
+- log R in axis-angles
+
++ are stereo-images rectified? 
+* use inlier fitting in stereo-rectification check
+
+- use stereo images to generate occ-map 
+- project everything to the left camera frame (see AI day)
+
+- change the color space for data augmenatation
+- reprojection error 
+- use left-rgb.ply + color comparsion for occ-points
+- visualize the disparity map
+- tune max_disp? 
+- fix column issue in disp_map
+
+- [why] are the closest vine poles always getting occluded? 
+- [why] everything with z < 1.5m is being marked as occluded (becuase of tractorhood)?
+
+- fix ground plane tilt
+
+- stereo-pcd angles are wrong
+
+- start bev-mask-generator-DAIRY pipeline 
+- undo tilt correction in sbevnet_get_grid_one
+
+- generate labels using MAVIS file
+- double label logging
+- time label_collapsing step

@@ -552,15 +552,15 @@ class OccMap:
         assert right_img.shape == (1080,1920,3), f"Right image shape must be (1080,1920,3) but is {right_img.shape}"
 
         # resize input images to match final dimensions
-        resized_L = cv2.resize(left_img, (final_w, final_h))
-        resized_R = cv2.resize(right_img, (final_w, final_h))
+        resized_L: np.ndarray = cv2.resize(left_img, (final_w, final_h))
+        resized_R: np.ndarray = cv2.resize(right_img, (final_w, final_h))
         
         # adjust camera intrinsics for resized images
-        scale_x = final_w / left_img.shape[1]
-        scale_y = final_h / left_img.shape[0]
+        scale_x: float = final_w / left_img.shape[1]
+        scale_y: float = final_h / left_img.shape[0]
 
         # scale camera intrinsics
-        K_scaled = K.copy()
+        K_scaled: np.ndarray = K.copy()
         K_scaled[0, 0] *= scale_x
         K_scaled[1, 1] *= scale_y
         K_scaled[0, 2] *= scale_x

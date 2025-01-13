@@ -13,3 +13,4 @@
 - use stack-traces to explain "where" the error occurred
 - do not use logging.debug
 - use only small cases for comments
+- avoid addingexception handling unless absolutely explicitly asked
