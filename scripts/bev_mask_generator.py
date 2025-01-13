@@ -142,9 +142,6 @@ class RotationUtils:
         return diff <= tolerance
 
 
-
-    
-
 class BEVGenerator:
     def __init__(self, logging_level=logging.WARNING, yaml_path: Optional[str] = None):
         '''
@@ -459,21 +456,20 @@ class BEVGenerator:
         # downsampling label-wise pointcloud
         down_CANOPY: o3d.t.geometry.PointCloud = pcd_CANOPY.voxel_down_sample(voxel_size=0.01)
         down_NAVIGABLE: o3d.t.geometry.PointCloud = pcd_NAVIGABLE.voxel_down_sample(voxel_size=0.01)
-        # down_CANOPY = pcd_CANOPY.clone()
-        # down_NAVIGABLE = pcd_NAVIGABLE.clone()
 
-        pts_canopy = len(pcd_CANOPY.point['positions'])
-        pts_canopy_DOWN = len(down_CANOPY.point['positions'])
+        # calculation of percentage reduction
+        pts_CANOPY: int = len(pcd_CANOPY.point['positions'])
+        pts_CANOPY_DOWN: int = len(down_CANOPY.point['positions'])
 
-        pts_navigable = len(pcd_NAVIGABLE.point['positions'])
-        pts_navigable_DOWN = len(down_NAVIGABLE.point['positions'])
+        pts_NAVIGABLE: int = len(pcd_NAVIGABLE.point['positions'])
+        pts_NAVIGABLE_DOWN: int = len(down_NAVIGABLE.point['positions'])
         
-        percent_red_canopy = (pts_canopy - pts_canopy_DOWN) / pts_canopy
-        percent_red_navigable = (pts_navigable - pts_navigable_DOWN) / pts_navigable
+        percent_reduction_CANOPY: float = (pts_CANOPY - pts_CANOPY_DOWN) / pts_CANOPY
+        percent_reduction_NAVIGABLE: float = (pts_NAVIGABLE - pts_NAVIGABLE_DOWN) / pts_NAVIGABLE
 
         self.logger.info(f"=================================")      
-        self.logger.info(f"% REDUCTION CANOPY: {percent_red_canopy:.2f}")
-        self.logger.info(f"% REDUCTION NAVIGABLE: {percent_red_navigable:.2f}")
+        self.logger.info(f"% REDUCTION CANOPY: {percent_reduction_CANOPY:.2f}")
+        self.logger.info(f"% REDUCTION NAVIGABLE: {percent_reduction_NAVIGABLE:.2f}")
         self.logger.info(f"=================================\n")
 
         # NOT DOWN-SAMPLING [obstacle, stem, pole]
@@ -500,21 +496,17 @@ class BEVGenerator:
         self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([down_NAVIGABLE, down_CANOPY, rad_filt_STEM, rad_filt_POLE, rad_filt_OBSTACLE])
         
         # converting to BEV
-        pcd_BEV_2D = self.pcd_BEV_3D.clone()
+        pcd_BEV_2D: o3d.t.geometry.PointCloud = self.pcd_BEV_3D.clone()
         pcd_BEV_2D.point['positions'][:, 1] = 0.0  # Set all y-coordinates to 0
         
-        # self.logger.info(f"=================================")    
-        # self.logger.info(f"[BEFORE / AFTER DOWNSAMPLING]")
-        # self.logger.info(f"NAVIGABLE: {len(pcd_NAVIGABLE.point['positions'])} | {len(down_NAVIGABLE.point['positions'])}")
-        # self.logger.info(f"CANOPY: {len(pcd_CANOPY.point['positions'])} | {len(down_CANOPY.point['positions'])}")
-        # self.logger.info(f"VINE-POLE: {len(pcd_POLE.point['positions'])} | {len(down_POLE.point['positions'])}")
-        # self.logger.info(f"VINE-STEM: {len(pcd_STEM.point['positions'])} | {len(down_STEM.point['positions'])}")
-        # self.logger.info(f"OBSTACLE: {len(pcd_OBSTACLE.point['positions'])} | {len(down_OBSTACLE.point['positions'])}")
-        # self.logger.info(f"=================================\n")
-
-        # collapse points based on priority
-        # pcd_BEV_2D = self.collapse_points_by_priority(pcd_BEV_2D)
-
+        self.logger.info("=================================")    
+        self.logger.info("BEFORE / AFTER DOWNSAMPLING")
+        self.logger.info(f"NAVIGABLE: {len(pcd_NAVIGABLE.point['positions']):<10} | {len(down_NAVIGABLE.point['positions']):<10}")
+        self.logger.info(f"CANOPY:    {len(pcd_CANOPY.point['positions']):<10} | {len(down_CANOPY.point['positions']):<10}")
+        self.logger.info(f"VINE-POLE: {len(pcd_POLE.point['positions']):<10} | {len(down_POLE.point['positions']):<10}")
+        self.logger.info(f"VINE-STEM: {len(pcd_STEM.point['positions']):<10} | {len(down_STEM.point['positions']):<10}")
+        self.logger.info(f"OBSTACLE:  {len(pcd_OBSTACLE.point['positions']):<10} | {len(down_OBSTACLE.point['positions']):<10}")
+        self.logger.info("=================================\n")
 
         return pcd_BEV_2D
     
@@ -545,8 +537,8 @@ class BEVGenerator:
         z_min, z_max = bb['z_min'], bb['z_max']
 
         # Calculate grid resolution
-        res_x = (x_max - x_min) / nx
-        res_z = (z_max - z_min) / nz
+        res_x: float = (x_max - x_min) / nx
+        res_z: float = (z_max - z_min) / nz
         
         self.logger.info(f"=================================")    
         self.logger.info(f"(res_x, res_z): ({res_x:.4f}, {res_z:.4f})")
@@ -559,37 +551,37 @@ class BEVGenerator:
         self.logger.info(f"=================================\n")
 
         # extract point coordinates and labels
-        x_coords = pcd.point['positions'][:, 0].numpy()
-        z_coords = pcd.point['positions'][:, 2].numpy()
-        labels = pcd.point['label'].numpy()
+        x_coords: np.ndarray = pcd.point['positions'][:, 0].numpy()
+        z_coords: np.ndarray = pcd.point['positions'][:, 2].numpy()
+        labels: np.ndarray = pcd.point['label'].numpy()
 
         # generate mask_x and mask_z using res_x
-        mask_x = ((x_coords - x_min) / res_x).astype(np.int32)
+        mask_x: np.ndarray = ((x_coords - x_min) / res_x).astype(np.int32)
         assert mask_x.min() >= 0 and mask_x.max() < nx, "x-indices are out of bounds!"
         
-        mask_z = nz - 1 - ((z_coords - z_min) / res_z).astype(np.int32)
+        mask_z: np.ndarray = nz - 1 - ((z_coords - z_min) / res_z).astype(np.int32)
         assert mask_z.min() >= 0 and mask_z.max() < nz, "z-indices are out of bounds!"
         
         # initialize mask with maximum priority value (lowest priority)
-        mask = np.full((nz, nx), 255, dtype=np.uint8)
+        mask: np.ndarray = np.full((nz, nx), 255, dtype=np.uint8)
         
         # Create priority lookup for each label
-        label_priorities = {label_info["id"]: label_info["priority"] 
+        label_priorities: Dict[int, int] = {label_info["id"]: label_info["priority"] 
                           for label_info in self.LABELS.values()}
         
      
-        labels = pcd.point['label'].numpy().astype(np.int32).flatten()
+        labels: np.ndarray = pcd.point['label'].numpy().astype(np.int32).flatten()
         
         # Assign labels respecting priorities (lower priority number = higher priority)
         for x, z, label in zip(mask_x, mask_z, labels):
-            current_priority = label_priorities.get(int(mask[z, x]), float('inf'))
-            new_priority = label_priorities.get(int(label), float('inf'))
+            current_priority: int = label_priorities.get(int(mask[z, x]), float('inf'))
+            new_priority: int = label_priorities.get(int(label), float('inf'))
             
             if new_priority < current_priority:
                 mask[z, x] = label
         
         return mask
-  
+
     def pcd_to_seg_mask(self, 
                              pcd: o3d.t.geometry.PointCloud, 
                              nx: int = None, nz: int = None, 
