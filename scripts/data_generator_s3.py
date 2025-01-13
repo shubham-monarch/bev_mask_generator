@@ -114,29 +114,36 @@ class LeafFolder:
             self.logger.error(f"Failed to upload file {src_path} to {dest_URI}: {str(e)}")
             return False
 
-    def download_file(self, file_URI: str) -> str:
+    @staticmethod
+    def download_file(file_URI: str, tmp_folder: str = "tmp-files", log_level: int = logging.INFO) -> str:
         ''' Download file from S3 to tmp-files folder and return the local path'''
+        
+        logger = get_logger("leaf-folder", level=log_level)
+
+        logger.info(f"=======================")
+        logger.info(f"Downloading {os.path.basename(file_URI)}...")
+        logger.info(f"=======================\n")
         
         try:
             bucket_name, key = file_URI.replace("s3://", "").split("/", 1)
             file_name = key.split("/")[-1]
             
-            # self.logger.info(f"=======================")
-            # self.logger.info(f"bucket_name: {bucket_name}")
-            # self.logger.info(f"key: {key}")
-            # self.logger.info(f"file_name: {file_name}")
-            # self.logger.info(f"=======================\n")
-
-            # os.makedirs("tmp-files", exist_ok=True)
-            os.makedirs(self.tmp_folder, exist_ok=True)
-            tmp_path = os.path.join(self.tmp_folder, file_name)
+            os.makedirs(tmp_folder, exist_ok=True)
+            tmp_path = os.path.join(tmp_folder, file_name)
             
-            self.s3.download_file(bucket_name, key, tmp_path)
+            s3 = boto3.client('s3')
+            s3.download_file(bucket_name, key, tmp_path)
+            
+            logger.info(f"=======================")
+            logger.info(f"Download complete!")
+            logger.info(f"=======================\n")
+            
             return tmp_path
+            
         except Exception as e:
-            self.logger.error(f"Failed to download file from {file_URI}: {str(e)}")
-            raise    
-    
+            logger.error(f"Failed to download file from {file_URI}: {str(e)}")
+            raise
+
     def upload_seg_mask(self, mask: np.ndarray, mask_uri: str) -> bool:
         """Save mask as PNG and upload to S3"""
         
@@ -172,7 +179,7 @@ class LeafFolder:
 
         pcd_URI = os.path.join(self.src_URI, "left-segmented-labelled.ply")
 
-        pcd_path = self.download_file(pcd_URI)
+        pcd_path = LeafFolder.download_file(pcd_URI, self.tmp_folder)
 
         # ==================
         # 2. generate mono / RGB segmentation masks
