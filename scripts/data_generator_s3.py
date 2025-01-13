@@ -116,14 +116,26 @@ class LeafFolder:
 
     @staticmethod
     def download_file(file_URI: str, tmp_folder: str = "tmp-files", log_level: int = logging.INFO) -> str:
-        ''' Download file from S3 to tmp-files folder and return the local path'''
+        """Download file from S3 to tmp-files folder and return the local path
         
-        logger = get_logger("leaf-folder", level=log_level)
+        Args:
+            file_URI: S3 URI of the file to download
+            tmp_folder: local folder to store downloaded files
+            log_level: logging level to use (default: logging.INFO)
+            
+        Returns:
+            str: path to the downloaded file
+            
+        Raises:
+            Exception: if download fails
+        """
+        # Fixed: Changed 'level' to 'log_level' in get_logger call
+        # logger = get_logger("download-file", level=log_level)
 
-        logger.info(f"=======================")
-        logger.info(f"Downloading {os.path.basename(file_URI)}...")
-        logger.info(f"=======================\n")
-        
+        # logger = get_logger("download-file", level = logging.ERROR)
+        logger = get_logger("download-file", level = log_level)
+          
+          
         try:
             bucket_name, key = file_URI.replace("s3://", "").split("/", 1)
             file_name = key.split("/")[-1]
@@ -132,16 +144,14 @@ class LeafFolder:
             tmp_path = os.path.join(tmp_folder, file_name)
             
             s3 = boto3.client('s3')
+            logger.info(f"downloading {file_name}...")
             s3.download_file(bucket_name, key, tmp_path)
-            
-            logger.info(f"=======================")
-            logger.info(f"Download complete!")
-            logger.info(f"=======================\n")
+            logger.info(f"successfully downloaded {file_name}")
             
             return tmp_path
             
         except Exception as e:
-            logger.error(f"Failed to download file from {file_URI}: {str(e)}")
+            logger.error(f"failed to download {file_URI}: {str(e)}")
             raise
 
     def upload_seg_mask(self, mask: np.ndarray, mask_uri: str) -> bool:
