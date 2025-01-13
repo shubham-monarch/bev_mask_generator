@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import open3d.core as o3c
 from scipy.spatial import cKDTree
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Union
 import torch
+import yaml
 
 from scripts.helpers import crop_pcd, mono_to_rgb_mask
 from scripts.logger import get_logger
@@ -145,23 +146,33 @@ class RotationUtils:
     
 
 class BEVGenerator:
-    def __init__(self, logging_level=logging.WARNING):
+    def __init__(self, logging_level=logging.WARNING, yaml_path: Optional[str] = "config/Mavis.yaml"):
+        '''
+        BEV data from segmented pointcloud
         
-        '''BEV data from segmented pointcloud'''
+        Args:
+            logging_level: Logging level (default: logging.WARNING)
+            yaml_path: Optional path to yaml file containing label configurations
+        '''
+        assert yaml_path is not None, "yaml_path is required!"
         
-        self.LABELS = {    
-            "OBSTACLE": {"id": 1, "priority": 1},
-            "VINE_POLE": {"id": 5, "priority": 2},  
-            "VINE_CANOPY": {"id": 3, "priority": 3},
-            "VINE_STEM": {"id": 4, "priority": 4},  
-            "NAVIGABLE_SPACE": {"id": 2, "priority": 5},  
+        self.logger = get_logger("bev_generator", level=logging_level)
+        
+        # define custom priority mapping (lower number = higher priority)
+        priority_mapping = {
+            'OBSTACLE': 1,
+            'VINE_POLE': 2,
+            'VINE_CANOPY': 3,
+            'VINE_STEM': 4,
+            'NAVIGABLE_SPACE': 5     
         }
+        
+        self.LABELS = self.update_labels_from_yaml(yaml_path, priority_mapping)
+        self.log_label_info()
         
         # tilt-correction matrix
         self.R = None
 
-        self.logger = get_logger("bev_generator", level=logging_level)
-        
         # old / rectified ground plane normal
         self.old_normal = None  
         self.new_normal = None
@@ -351,6 +362,66 @@ class BEVGenerator:
         assert self.pcd_BEV_3D is not None, "3D BEV pointcloud is not initialized!"
         return self.pcd_BEV_3D
 
+    def collapse_points_by_priority(self, pcd: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
+        """
+        Collapse points in BEV projection based on label priorities.
+        Points with higher priority (lower priority number) are preserved when multiple points
+        occupy the same x-z position.
+        
+        Args:
+            pcd (o3d.t.geometry.PointCloud): Input point cloud
+            
+        Returns:
+            o3d.t.geometry.PointCloud: Point cloud with priority-based collapsed points
+        """
+        # get unique x-z positions and their indices
+        positions_2d = pcd.point['positions'][:, [0, 2]]  # keep only x and z coordinates
+        labels = pcd.point['label'].numpy()
+        
+        # assigning priority for each point in the pointcloud
+        priorities = np.zeros_like(labels, dtype=np.int32)
+        for label_info in self.LABELS.values():
+            mask = labels == label_info['id']
+            priorities[mask] = label_info['priority']
+        
+        # find unique positions and their indices
+        unique_positions, inverse_indices, counts = np.unique(
+            positions_2d, 
+            axis=0, 
+            return_inverse=True, 
+            return_counts=True
+        )
+        
+        self.logger.info(f"=================================")    
+        self.logger.info(f"Unique positions: {unique_positions.shape}")
+        self.logger.info(f"len(unique_positions): {len(unique_positions)}")
+        self.logger.info(f"=================================\n")
+
+        # for each unique position, keep the point with highest priority (lowest number)
+        final_indices = []
+        for i in range(len(unique_positions)):
+            # get indices of all points at this position
+            mask = inverse_indices == i
+            point_indices = np.where(mask)[0]
+            
+            # if only one point, keep it
+            if len(point_indices) == 1:
+                final_indices.append(point_indices[0])
+            else:
+                # get priorities of all points at this position
+                pos_priorities = priorities[point_indices]
+                # keep the index of the point with highest priority (lowest number)
+                best_idx = point_indices[np.argmin(pos_priorities)]
+                final_indices.append(best_idx)
+        
+        # create new point cloud with only the selected points
+        final_indices = np.array(final_indices)
+        collapsed_pcd = pcd.clone()
+        collapsed_pcd.point['positions'] = pcd.point['positions'][final_indices]
+        collapsed_pcd.point['label'] = pcd.point['label'][final_indices]
+        
+        return collapsed_pcd
+
     def generate_pcd_BEV_2D(self, pcd_input: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
         
         """Generate BEV pcd (with z = 0) from segmented pointcloud"""
@@ -413,14 +484,18 @@ class BEVGenerator:
         pcd_BEV_2D = self.pcd_BEV_3D.clone()
         pcd_BEV_2D.point['positions'][:, 1] = 0.0  # Set all y-coordinates to 0
         
-        self.logger.info(f"=================================")    
-        self.logger.info(f"[BEFORE / AFTER DOWNSAMPLING]")
-        self.logger.info(f"NAVIGABLE: {len(pcd_NAVIGABLE.point['positions'])} | {len(down_NAVIGABLE.point['positions'])}")
-        self.logger.info(f"CANOPY: {len(pcd_CANOPY.point['positions'])} | {len(down_CANOPY.point['positions'])}")
-        self.logger.info(f"VINE-POLE: {len(pcd_POLE.point['positions'])} | {len(down_POLE.point['positions'])}")
-        self.logger.info(f"VINE-STEM: {len(pcd_STEM.point['positions'])} | {len(down_STEM.point['positions'])}")
-        self.logger.info(f"OBSTACLE: {len(pcd_OBSTACLE.point['positions'])} | {len(down_OBSTACLE.point['positions'])}")
-        self.logger.info(f"=================================\n")
+        # self.logger.info(f"=================================")    
+        # self.logger.info(f"[BEFORE / AFTER DOWNSAMPLING]")
+        # self.logger.info(f"NAVIGABLE: {len(pcd_NAVIGABLE.point['positions'])} | {len(down_NAVIGABLE.point['positions'])}")
+        # self.logger.info(f"CANOPY: {len(pcd_CANOPY.point['positions'])} | {len(down_CANOPY.point['positions'])}")
+        # self.logger.info(f"VINE-POLE: {len(pcd_POLE.point['positions'])} | {len(down_POLE.point['positions'])}")
+        # self.logger.info(f"VINE-STEM: {len(pcd_STEM.point['positions'])} | {len(down_STEM.point['positions'])}")
+        # self.logger.info(f"OBSTACLE: {len(pcd_OBSTACLE.point['positions'])} | {len(down_OBSTACLE.point['positions'])}")
+        # self.logger.info(f"=================================\n")
+
+         # collapse points based on priority
+        pcd_BEV_2D = self.collapse_points_by_priority(pcd_BEV_2D)
+
 
         return pcd_BEV_2D
     
@@ -514,5 +589,96 @@ class BEVGenerator:
         R = self.R.T
         T[:3, :3] = R
         return T
+
+    def update_labels_from_yaml(self, yaml_path: str, 
+                              priority_mapping: Dict[str, int]
+                              ) -> Dict[str, Dict[str, Union[int, str, List[int]]]]:
+        """
+        Update LABELS dictionary using configuration from yaml file.
+        
+        Args:
+            yaml_path (str): Path to the yaml configuration file
+            priority_mapping (Dict[str, int]): Mapping of label keys to their priorities.
+                Only labels with defined priorities will be included in the output
+            
+        Note:
+            The yaml file should contain 'labels' and 'color_map' entries
+            Labels without defined priorities will be skipped
+            
+        Raises:
+            ValueError: If priority_mapping is None
+        """
+        # verify priority mapping is provided
+        if priority_mapping is None:
+            raise ValueError("Priority mapping must be provided")
+            
+        try:
+            with open(yaml_path, 'r') as file:
+                config = yaml.safe_load(file)
+                
+            # create mapping from label names to their properties
+            label_mapping = {}
+            skipped_labels = []
+            
+            for label_id, label_name in config['labels'].items():
+                # skip void class
+                if label_id == 0:
+                    continue
+                    
+                # convert label name to uppercase and replace spaces/underscores with underscore
+                label_key = label_name.upper().replace(' ', '_').replace('-', '_')
+                
+                # skip labels without defined priorities
+                if label_key not in priority_mapping:
+                    skipped_labels.append(label_key)
+                    continue
+                
+                # get color from color map (keep as BGR)
+                bgr_color = config['color_map'][label_id]
+                
+                # get priority from mapping
+                priority = priority_mapping[label_key]
+                
+                label_mapping[label_key] = {
+                    "id": label_id,
+                    "priority": priority,
+                    "name": label_name,
+                }
+                
+            # log update information
+            self.logger.info(f"=================================")
+            self.logger.info(f"Updated LABELS from {yaml_path}")
+            self.logger.info(f"Number of labels included: {len(label_mapping)}")
+            self.logger.info(f"Priority mapping applied: {priority_mapping}")
+            if skipped_labels:
+                self.logger.warning(f"Skipped labels (no priority defined): {skipped_labels}")
+            self.logger.info(f"=================================\n")
+            
+            return label_mapping
+
+        except Exception as e:
+            self.logger.error(f"Failed to update labels from {yaml_path}: {str(e)}")
+            raise
+
+    def log_label_info(self) -> None:
+        """
+        Log information about configured labels in a structured format.
+        Creates a visually organized table of label information including ID, priority, and name.
+        """
+        # create a visual separator for better log readability
+        separator = "=" * 50
+        self.logger.warning(separator)
+        
+        # log each label's information in a structured format
+        for key, value in self.LABELS.items():
+            label_info = (
+                f"Label: {key:15} | "  # align labels for better readability
+                f"ID: {value['id']:<3} | "
+                f"Priority: {value['priority']:<2} | "
+                f"Name: {value['name']}"
+            )
+            self.logger.warning(label_info)
+            
+        self.logger.warning(separator + "\n")
 
   
