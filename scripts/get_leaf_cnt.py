@@ -18,19 +18,8 @@ if __name__ == "__main__":
     logger = get_logger("get_leaf_cnt")
 
     URIs = [args.uri]
-
-    # Pass dummy values to bypass assertions
-    data_generator_s3 = DataGeneratorS3(
-        src_URIs=URIs, 
-        dest_folder=None,
-        index_json="dummy",     # Dummy value to bypass assert
-        color_map="dummy",      # Dummy value to bypass assert
-        crop_bb={"x": 0, "y": 0, "z": 0, "w": 1, "h": 1, "d": 1},  # Dummy value to bypass assert
-        nx=1,                   # Dummy value to bypass assert
-        nz=1                    # Dummy value to bypass assert
-    )
     
-    leaf_folder_cnt = len(data_generator_s3.get_leaf_folders())
+    leaf_folder_cnt = len(DataGeneratorS3.get_leaf_folders(URIs))
     
     logger.info(f"=======================")
     logger.info(f"URI: {args.uri}")
