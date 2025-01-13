@@ -146,7 +146,7 @@ class RotationUtils:
     
 
 class BEVGenerator:
-    def __init__(self, logging_level=logging.WARNING, yaml_path: Optional[str] = "config/Mavis.yaml"):
+    def __init__(self, logging_level=logging.WARNING, yaml_path: Optional[str] = None):
         '''
         BEV data from segmented pointcloud
         
@@ -158,6 +158,10 @@ class BEVGenerator:
         
         self.logger = get_logger("bev_generator", level=logging_level)
         
+        self.logger.info(f"=================================")    
+        self.logger.info(f"BEVGenerator initialized")
+        self.logger.info(f"=================================\n")
+
         # define custom priority mapping (lower number = higher priority)
         priority_mapping = {
             'OBSTACLE': 1,
@@ -167,6 +171,7 @@ class BEVGenerator:
             'NAVIGABLE_SPACE': 5     
         }
         
+        self.yaml_path = yaml_path
         self.LABELS = self.update_labels_from_yaml(yaml_path, priority_mapping)
         self.log_label_info()
         
@@ -186,10 +191,6 @@ class BEVGenerator:
         # rectified PCD
         self.pcd_RECTIFIED = None
 
-        self.logger.info(f"=================================")      
-        self.logger.info(f"BEVGenerator initialized")
-        self.logger.info(f"=================================\n")
-    
     def filter_radius_outliers(self, pcd: o3d.t.geometry.PointCloud, nb_points: int, search_radius: float):
         '''
         Filter radius-based outliers from the point cloud
@@ -374,32 +375,46 @@ class BEVGenerator:
         Returns:
             o3d.t.geometry.PointCloud: Point cloud with priority-based collapsed points
         """
+        
+        self.logger.info(f"=================================")    
+        self.logger.info(f"Collapsing points by priority...")
+        self.logger.info(f"=================================\n")
+        
         # get unique x-z positions and their indices
-        positions_2d = pcd.point['positions'][:, [0, 2]]  # keep only x and z coordinates
+        positions_2d = pcd.point['positions'][:, [0, 2]].numpy()  # keep only x and z coordinates
         labels = pcd.point['label'].numpy()
         
+        self.logger.info(f"=================================")    
+        self.logger.info(f"positions_2d: {positions_2d.shape}")
+        self.logger.info(f"=================================\n")
+
         # assigning priority for each point in the pointcloud
         priorities = np.zeros_like(labels, dtype=np.int32)
         for label_info in self.LABELS.values():
             mask = labels == label_info['id']
             priorities[mask] = label_info['priority']
         
-        # find unique positions and their indices
-        unique_positions, inverse_indices, counts = np.unique(
-            positions_2d, 
-            axis=0, 
-            return_inverse=True, 
-            return_counts=True
+        # Combine positions and priorities into a structured array
+        dtype = [('x', np.float32), ('z', np.float32), ('priority', np.int32)]
+        combined = np.empty(positions_2d.shape[0], dtype)
+        combined['x'] = positions_2d[:, 0]
+        combined['z'] = positions_2d[:, 1]
+        combined['priority'] = priorities.flatten()
+        
+        # find unique positions and their indices based on x and z coordinates
+        unique_combined, inverse_indices = np.unique(
+            combined[['x', 'z']], 
+            return_inverse=True
         )
         
         self.logger.info(f"=================================")    
-        self.logger.info(f"Unique positions: {unique_positions.shape}")
-        self.logger.info(f"len(unique_positions): {len(unique_positions)}")
+        self.logger.info(f"Unique positions: {unique_combined.shape}")
+        self.logger.info(f"len(unique_positions): {len(unique_combined)}")
         self.logger.info(f"=================================\n")
 
         # for each unique position, keep the point with highest priority (lowest number)
         final_indices = []
-        for i in range(len(unique_positions)):
+        for i in range(len(unique_combined)):
             # get indices of all points at this position
             mask = inverse_indices == i
             point_indices = np.where(mask)[0]
@@ -409,7 +424,7 @@ class BEVGenerator:
                 final_indices.append(point_indices[0])
             else:
                 # get priorities of all points at this position
-                pos_priorities = priorities[point_indices]
+                pos_priorities = combined['priority'][point_indices]
                 # keep the index of the point with highest priority (lowest number)
                 best_idx = point_indices[np.argmin(pos_priorities)]
                 final_indices.append(best_idx)
@@ -426,6 +441,10 @@ class BEVGenerator:
         
         """Generate BEV pcd (with z = 0) from segmented pointcloud"""
         
+        self.logger.info(f"=================================")    
+        self.logger.info(f"Generating BEV pcd...")
+        self.logger.info(f"=================================\n")
+
         pcd_RECTIFIED: o3d.t.geometry.PointCloud = self.get_tilt_rectified_pcd(pcd_input)
 
         # class-wise point cloud extraction
@@ -493,8 +512,8 @@ class BEVGenerator:
         # self.logger.info(f"OBSTACLE: {len(pcd_OBSTACLE.point['positions'])} | {len(down_OBSTACLE.point['positions'])}")
         # self.logger.info(f"=================================\n")
 
-         # collapse points based on priority
-        pcd_BEV_2D = self.collapse_points_by_priority(pcd_BEV_2D)
+        # collapse points based on priority
+        # pcd_BEV_2D = self.collapse_points_by_priority(pcd_BEV_2D)
 
 
         return pcd_BEV_2D
@@ -514,8 +533,13 @@ class BEVGenerator:
         """
         
         assert bb is not None, "Bounding box parameters are required!"
+        assert nx is not None and nz is not None, "nx and nz must be provided!"
         assert nx == nz, "nx and nz must be equal!"
 
+        self.logger.info(f"=================================")    
+        self.logger.info(f"(nx, nz): ({nx}, {nz})")
+        self.logger.info(f"=================================\n")
+        
         # Extract bounding box limits
         x_min, x_max = bb['x_min'], bb['x_max']
         z_min, z_max = bb['z_min'], bb['z_max']
@@ -523,7 +547,11 @@ class BEVGenerator:
         # Calculate grid resolution
         res_x = (x_max - x_min) / nx
         res_z = (z_max - z_min) / nz
-
+        
+        self.logger.info(f"=================================")    
+        self.logger.info(f"(res_x, res_z): ({res_x:.4f}, {res_z:.4f})")
+        self.logger.info(f"=================================\n")
+        
         assert res_x == res_z, "Resolution x and z must be equal!"
 
         self.logger.info(f"=================================")    
@@ -566,18 +594,26 @@ class BEVGenerator:
                              pcd: o3d.t.geometry.PointCloud, 
                              nx: int = None, nz: int = None, 
                              bb: dict = None, 
-                             yaml_path: str = None) -> Tuple[np.ndarray, np.ndarray]:
+                             ) -> Tuple[np.ndarray, np.ndarray]:
         
         '''Generate mono / rgb segmentation masks from a pointcloud'''
                 
         assert bb is not None, "Bounding box parameters are required!"
         assert nx is not None and nz is not None, "nx and nz must be provided!"
+        assert nx == nz, "nx and nz must be equal!"
+        assert self.yaml_path is not None, "yaml_path is required!"
         
+        self.logger.info(f"=================================")    
+        self.logger.info(f"Generating segmentation mask...")
+        self.logger.info(f"self.yaml_path: {self.yaml_path}")
+        self.logger.info(f"=================================\n")
+
+
         pcd_BEV_2D = self.generate_pcd_BEV_2D(pcd)
         pcd_BEV_2D_CROPPED = crop_pcd(pcd_BEV_2D, bb)
 
         seg_mask_mono = self.bev_pcd_to_seg_mask_mono(pcd_BEV_2D_CROPPED, nx, nz, bb)
-        seg_mask_rgb = mono_to_rgb_mask(seg_mask_mono, yaml_path=yaml_path)
+        seg_mask_rgb = mono_to_rgb_mask(mono_mask=seg_mask_mono, yaml_path=self.yaml_path)
 
         return seg_mask_mono, seg_mask_rgb
 
@@ -646,13 +682,15 @@ class BEVGenerator:
                 }
                 
             # log update information
-            self.logger.info(f"=================================")
-            self.logger.info(f"Updated LABELS from {yaml_path}")
-            self.logger.info(f"Number of labels included: {len(label_mapping)}")
-            self.logger.info(f"Priority mapping applied: {priority_mapping}")
+            # self.logger.info(f"=================================")
+            # self.logger.info(f"Updated LABELS from {yaml_path}")
+            # self.logger.info(f"Number of labels included: {len(label_mapping)}")
+            # self.logger.info(f"Priority mapping applied: {priority_mapping}")
             if skipped_labels:
+                self.logger.warning(f"=================================")
                 self.logger.warning(f"Skipped labels (no priority defined): {skipped_labels}")
-            self.logger.info(f"=================================\n")
+                self.logger.warning(f"=================================\n")
+            # self.logger.info(f"=================================\n")
             
             return label_mapping
 
@@ -669,10 +707,9 @@ class BEVGenerator:
         separator = "=" * 50
         self.logger.warning(separator)
         
-        # log each label's information in a structured format
         for key, value in self.LABELS.items():
             label_info = (
-                f"Label: {key:15} | "  # align labels for better readability
+                f"Label: {key:15} | "  
                 f"ID: {value['id']:<3} | "
                 f"Priority: {value['priority']:<2} | "
                 f"Name: {value['name']}"
