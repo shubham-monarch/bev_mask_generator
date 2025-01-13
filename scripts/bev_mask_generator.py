@@ -687,10 +687,9 @@ class BEVGenerator:
             # self.logger.info(f"Number of labels included: {len(label_mapping)}")
             # self.logger.info(f"Priority mapping applied: {priority_mapping}")
             if skipped_labels:
-                self.logger.warning(f"=================================")
-                self.logger.warning(f"Skipped labels (no priority defined): {skipped_labels}")
-                self.logger.warning(f"=================================\n")
-            # self.logger.info(f"=================================\n")
+                self.logger.info(f"=================================")
+                self.logger.info(f"Skipped labels (no priority defined): {skipped_labels}")
+                self.logger.info(f"=================================\n")
             
             return label_mapping
 
