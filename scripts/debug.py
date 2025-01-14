@@ -83,7 +83,7 @@ def plot_segmentation_classes(mask: np.ndarray, path: str = None, title: str = N
 if __name__ == "__main__":  
 
     # ==========================
-    # CASE 9: stereo-rectification
+    # CASE 10: occ-mask generation
     # ==========================
 
     pcd_dir = f"debug/frames-3"
@@ -132,40 +132,49 @@ if __name__ == "__main__":
     
     for i in range(10):
         # try:      
-            
-        leaf_folder_uri = random.choice(leaf_folders)
-        
-        logger.info(f"===========================")
-        logger.info(f"{i} ==> [{leaf_folder_uri}]")
-        logger.info(f"===========================\n")
 
-        # save left-img
-        left_img_uri = os.path.join(leaf_folder_uri, "left.jpg")
-        left_img_TMP = LeafFolder.download_file(left_img_uri, log_level=logging.WARNING)
-        left_img_DEST = os.path.join(left_img_dir, f"left-img-{i}.jpg")
-        shutil.copy(left_img_TMP, left_img_DEST)
+        logger.info("────" * 10)
+        logger.info(f"i: {i}")
+        logger.info(f"────" * 10)
+        # continue
+        
+        # leaf_folder_uri = random.choice(leaf_folders)
+        
+        # logger.info(f"===========================")
+        # logger.info(f"{i} ==> [{leaf_folder_uri}]")
+        # logger.info(f"===========================\n")
+
+        # # save left-img
+        # left_img_uri = os.path.join(leaf_folder_uri, "left.jpg")
+        # left_img_TMP = LeafFolder.download_file(left_img_uri, log_level=logging.WARNING)
+        # left_img_DEST = os.path.join(left_img_dir, f"left-img-{i}.jpg")
+        # shutil.copy(left_img_TMP, left_img_DEST)
         
         # save left-segmented-labelled.ply
-        left_segmented_labelled_uri = os.path.join(leaf_folder_uri, "left-segmented-labelled.ply")
-        sfm_pcd_TMP = LeafFolder.download_file(left_segmented_labelled_uri, log_level=logging.WARNING)
-        sfm_pcd_DEST = os.path.join(segmented_pcd_dir, f"sfm-pcd-{i}.ply")
-        shutil.copy(sfm_pcd_TMP, sfm_pcd_DEST)
-        
+        # left_segmented_labelled_uri = os.path.join(leaf_folder_uri, "left-segmented-labelled.ply")
+        # sfm_pcd_TMP = LeafFolder.download_file(left_segmented_labelled_uri, log_level=logging.WARNING)
+        # ssfm_pcd_DEST = os.path.join(segmented_pcd_dir, f"sfm-pcd-{i}.ply")
+        # shutil.copy(sfm_pcd_TMP, sfm_pcd_DEST)
 
+        sfm_pcd_DEST_PATH = f"debug/3/segmented-pcd/sfm-pcd-{i}.ply"    
+
+        logger.info("────" * 10)
+        logger.info(f"sfm_pcd_DEST_PATH: {sfm_pcd_DEST_PATH}")
+        logger.info("────" * 10 + "\n")
+        
         # # bev-generator
-        sfm_pcd = o3d.t.io.read_point_cloud(sfm_pcd_DEST)
+        sfm_pcd = o3d.t.io.read_point_cloud(sfm_pcd_DEST_PATH)
         
         bev_generator = BEVGenerator(logging_level=logging.INFO, yaml_path="config/dairy.yaml")
-        relabeled_pcd = bev_generator.relabel_pointcloud(sfm_pcd)
         
-        for label_id in range(14):
-            pcd_class = bev_generator.get_class_pointcloud(relabeled_pcd, label_id)
-            o3d.t.io.write_point_cloud(os.path.join(segmented_pcd_dir, f"sfm-pcd-{i}-{label_id}.ply"), pcd_class)
+        # for label_id in range(14):
+        #     pcd_class = bev_generator.get_class_pointcloud(sfm_pcd, label_id)
+        #     # o3d.t.io.write_point_cloud(os.path.join(segmented_pcd_dir, f"sfm-pcd-{i}-{label_id}.ply"), pcd_class)
         
         
         # bev_generator = BEVGenerator(logging_level=logging.INFO, yaml_path="config/dairy.yaml")
         # # bev_generator.generate_pcd_BEV_2D(sfm_pcd)
-        # bev_generator.count_unique_labels(sfm_pcd)
+        bev_generator.count_unique_labels(sfm_pcd)
         
         # seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(sfm_pcd, 
         #                                                             nx = 256, 
@@ -179,6 +188,116 @@ if __name__ == "__main__":
         
         # cv2.imwrite(os.path.join(seg_masks_dir, f"seg-mask-mono-{i}.png"), seg_mask_mono)
         # cv2.imwrite(os.path.join(seg_masks_dir, f"seg-mask-rgb-{i}.png"), seg_mask_rgb)
+        
+  
+    
+
+    # # ==========================
+    # # CASE 9: bev_mask_generation -- DAIRY
+    # # ==========================
+
+    # pcd_dir = f"debug/frames-3"
+    
+    # left_img_dir = f"debug/3/left-imgs"
+    # seg_masks_dir = f"debug/3/seg-masks"
+    # segmented_pcd_dir = f"debug/3/segmented-pcd"
+    
+    # os.makedirs(seg_masks_dir, exist_ok=True)
+    # os.makedirs(segmented_pcd_dir, exist_ok=True)
+    # os.makedirs(left_img_dir, exist_ok=True)
+    
+    # # assert not (os.path.exists(seg_masks_dir) and os.listdir(seg_masks_dir)), f"{seg_masks_dir} must be empty if it exists."
+    # # assert not (os.path.exists(segmented_pcd_dir) and os.listdir(segmented_pcd_dir)), f"{segmented_pcd_dir} must be empty if it exists."
+    # # assert not (os.path.exists(left_img_dir) and os.listdir(left_img_dir)), f"{left_img_dir} must be empty if it exists."
+
+    # # bev_generator = BEVGenerator()
+    
+    # # pcd_files = []
+    # # for root, _, files in os.walk(pcd_dir):
+    # #     for file in files:
+    # #         if file == "left-segmented-labelled.ply":
+    # #             pcd_files.append(os.path.join(root, file))
+    
+    # # total_count = len(pcd_files)
+    # # # random.shuffle(pcd_files)
+    # # pcd_files.sort()
+
+    # # occ_map_generator = OcclusionMap()
+
+    # void_counter = []
+
+    # # src_URIs = ["s3://occupancy-dataset/occ-dataset/vineyards/gallo/", 
+    # #             "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"]
+    
+    # src_URIs = ["s3://occupancy-dataset/occ-dataset/dairy/"]
+
+    # leaf_folders = DataGeneratorS3.get_leaf_folders(src_URIs)
+
+    # logger.info(f"===========================")
+    # logger.info(f"len(leaf_folders): {len(leaf_folders)}")    
+    # logger.info(f"===========================\n")
+
+    # counter = 0
+    # random.seed(2)  # Set a seed for reproducibility
+    
+    # for i in range(10):
+    #     # try:      
+
+    #     logger.info("────" * 10)
+    #     logger.info(f"i: {i}")
+    #     logger.info(f"────" * 10)
+    #     # continue
+        
+    #     # leaf_folder_uri = random.choice(leaf_folders)
+        
+    #     # logger.info(f"===========================")
+    #     # logger.info(f"{i} ==> [{leaf_folder_uri}]")
+    #     # logger.info(f"===========================\n")
+
+    #     # # save left-img
+    #     # left_img_uri = os.path.join(leaf_folder_uri, "left.jpg")
+    #     # left_img_TMP = LeafFolder.download_file(left_img_uri, log_level=logging.WARNING)
+    #     # left_img_DEST = os.path.join(left_img_dir, f"left-img-{i}.jpg")
+    #     # shutil.copy(left_img_TMP, left_img_DEST)
+        
+    #     # save left-segmented-labelled.ply
+    #     # left_segmented_labelled_uri = os.path.join(leaf_folder_uri, "left-segmented-labelled.ply")
+    #     # sfm_pcd_TMP = LeafFolder.download_file(left_segmented_labelled_uri, log_level=logging.WARNING)
+    #     # ssfm_pcd_DEST = os.path.join(segmented_pcd_dir, f"sfm-pcd-{i}.ply")
+    #     # shutil.copy(sfm_pcd_TMP, sfm_pcd_DEST)
+
+    #     sfm_pcd_DEST_PATH = f"debug/3/segmented-pcd/sfm-pcd-{i}.ply"    
+
+    #     logger.info("────" * 10)
+    #     logger.info(f"sfm_pcd_DEST_PATH: {sfm_pcd_DEST_PATH}")
+    #     logger.info("────" * 10 + "\n")
+        
+    #     # # bev-generator
+    #     sfm_pcd = o3d.t.io.read_point_cloud(sfm_pcd_DEST_PATH)
+        
+    #     bev_generator = BEVGenerator(logging_level=logging.INFO, yaml_path="config/dairy.yaml")
+        
+    #     # for label_id in range(14):
+    #     #     pcd_class = bev_generator.get_class_pointcloud(sfm_pcd, label_id)
+    #     #     # o3d.t.io.write_point_cloud(os.path.join(segmented_pcd_dir, f"sfm-pcd-{i}-{label_id}.ply"), pcd_class)
+        
+        
+    #     # bev_generator = BEVGenerator(logging_level=logging.INFO, yaml_path="config/dairy.yaml")
+    #     # # bev_generator.generate_pcd_BEV_2D(sfm_pcd)
+    #     bev_generator.count_unique_labels(sfm_pcd)
+        
+    #     # seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(sfm_pcd, 
+    #     #                                                             nx = 256, 
+    #     #                                                             nz = 256, 
+    #     #                                                             bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.02, 'z_max': 5.02})
+
+    #     # seg_mask_mono = np.flip(seg_mask_mono, axis=0)
+    #     # seg_mask_rgb = np.flip(seg_mask_rgb, axis=0)
+
+
+        
+    #     # cv2.imwrite(os.path.join(seg_masks_dir, f"seg-mask-mono-{i}.png"), seg_mask_mono)
+    #     # cv2.imwrite(os.path.join(seg_masks_dir, f"seg-mask-rgb-{i}.png"), seg_mask_rgb)
         
   
      
