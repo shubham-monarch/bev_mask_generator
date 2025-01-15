@@ -9,7 +9,6 @@
 
 + priority based collapsing
 + crop pointcloud to bounding boxs
-- hidden point removal 
 + farthest point sampling
 * checkout bev-former voxelizer
 + statistical outlier removal
@@ -136,7 +135,7 @@ generate additional data
 
 
 ======================
-evaluation infrastructure 
+sbevnet 
 ======================
 - check sbevnet utils
 - EvalClass 
@@ -167,6 +166,37 @@ evaluation infrastructure
 - check the x/y/z-range of non-void points in each segmented pcd
 * visualize the bev-pcd before collapsing to z=0
 
+- warm-up + cool-down 
+- pytorch lightening
+- pytorch fabric
+
++ rename files inside the test folder
+
+- establish bug in bev_to_seg_mask_mono
++ add priority map in bev_to_seg_mask_mono
++ bev_to_seg_mask_mono might be wrong because of no xmax, zmax
++ bev_to_seg_mask_mono --> bev_pcd_to_seg_mask_mono
++ label calculation in wrong in bev_to_seg_mask_mono
++ assign highest-priority to occ-mask
+- check occ-mask integration in sbevnet
+
+- pass unequal x and z-ranges
+- increase z and decrease x
+- change the color space for data augmenatation
+- reprojection error 
+- use data-augmentation to increase frame-cnt in sbevnet
+- fill ground points in GT-seg-masks
+- support for rectangular seg-masks
+- shouldn't the seg-mask be straight even if the camera is tilted? 
+- fix / review disparity scaling in sbevnet
+- fix / review / improve image pre-processing step 
+- data augmentation
+
+
+
+======================
+fix bev-generator
+======================
 * check if dz is constant across subsequent frames
 + why is z becoming more negative across frames?
 + check if GT-seg-masks being passed to sbevnet is flipped? 
@@ -186,67 +216,29 @@ evaluation infrastructure
 + add dedicated leaf-folder-cnt bash script
 - clean pytest bash script (see sbevnet)
 - upload s3-index.json after each frame run
-
-
 * revisit clean around labels
 * why do we even need clean_around_labels? 
 * how does clean_around_labels affect the GT / model-training?
 + refactor bev-generator.py
-- add more classes in bev-generator.py
+* add more classes in bev-generator.py
 + fix project_to_ground_plane
 + test the project_to_ground_plane fix
 + check the pcd_grond being used in the final bev
-
 + refactor generate_BEV
 + refactor bev_generator.py
-- add static methods in bev-generator
-- fill ground points in GT-seg-masks
+* add static methods in bev-generator
 + fix pcd_ground in generate_BEV
 + origin_pcd vs downsampled_pcd vs inliers_pcd
 + pcd_ground has not been downsampled before seg-mask generation
-- make bev-generator functions private
-
+* make bev-generator functions private
 - does img resizing affect the occ-map generation?
 - ignore pcd_ground from occ-mask calculations
-- use data-augmentation to increase frame-cnt in sbevnet
 - load K from zed-sdk
-
 - fix intermittent out-of-memory issue for occ-map
-- test occ-map with debug/frames-4/
-
++ test occ-map with debug/frames-4/
 - write better comments
 - add raises in doc-strings
-
-
-======================
-training
-======================
-- warm-up + cool-down 
-- pytorch lightening
-- pytorch fabric
-
-+ rename files inside the test folder
-
-- establish bug in bev_to_seg_mask_mono
-+ add priority map in bev_to_seg_mask_mono
-+ bev_to_seg_mask_mono might be wrong because of no xmax, zmax
-+ bev_to_seg_mask_mono --> bev_pcd_to_seg_mask_mono
-+ label calculation in wrong in bev_to_seg_mask_mono
-+ assign highest-priority to occ-mask
-- check occ-mask integration in sbevnet
-
-
-======================
-sbevnet
-======================
-- pass unequal x and z-ranges
-- increase z and decrease x
-
-
-======================
-fix bev-generator
-======================
-- rename bev_generator.py to bev_mask_generator.py
++ rename bev_generator.py to bev_mask_generator.py
 - update bb value in data-generator-s3
 - set bb to {'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5}
 - remove invalid points (project to [1080 * 1920] image) before generating bev-mask
@@ -256,20 +248,22 @@ fix bev-generator
 - why are there no obstacles in seg-mask-mono if 63 are present in downsampled_pcd?
 - why does seg-mask-mono have label 255? 
 - check if camera / pointcloud is tilted in the colmap viewer
-- compare rectified and non-rectified pcd in the colmap viewer
++ compare rectified and non-rectified pcd in the colmap viewer
 - create unknown class with priority 99
-- support for rectangular seg-masks
 - still getting intermittent z-out of bounds error while generating bev-masks
+- shouldn't the seg-mask be straight even if the camera is tilted? 
 
-======================
-demo
-======================
-- show occ mask for uncropped points
-- show pcd to image projection[(1080,1920), (640,720)]
-- need option to pass rectangular seg-mask
-- dairy camera feed quality sucks
-- show mccarty / mineral-king
-- added 450 frames
+- start bev-mask-generator-DAIRY pipeline 
+- undo tilt correction in sbevnet_get_grid_one
+
++ generate labels using MAVIS file
++ double label logging
++ time label_collapsing step
+
++ remove radius-outlier filtering in bev_mask_generator
+- add collapsing mechanism for dairy_mask_generator
+- combine feed-pusher + cows
+- check need for priority-based label collapsing mechanism for dairy
 
 ======================
 fix occ-mask-generator
@@ -279,8 +273,8 @@ fix occ-mask-generator
 + do we need to pass the camera rotation-matrix to occ-mask-generator?
 + pass camera-rotation-matrix to occ-mask
 + [debug] reduce depth-threshold
-- [debug] is occ-detection working for uncropped points?
-- [debug] visible i.e. non-occluded should project nicely on the image
++ [debug] is occ-detection working for uncropped points?
++ [debug] visible i.e. non-occluded should project nicely on the image
 + compare pcd to image projection with / without camera extriniscs
 + cropped vs non-cropped projection
 + depth is negative for [debug/frames-3/frame-1190/left-segmented-labelled.ply]
@@ -289,50 +283,60 @@ fix occ-mask-generator
 + why is the above percentage so low? 
 + use colored projection
 + swap (x,y)?
-- check K using zed-sdk
-- tabulate metrics for all the frames in a leaf-folder
-
-+ would be a good idea to change bev-mask-bounds --> [z_min: 1.5m]
-- add occ-pcd to occ-mask coversion
-
-
-
-
++ check K using zed-sdk
++ tabulate metrics for all the frames in a leaf-folder
++ add occ-pcd to occ-mask coversion
+- would be a good idea to change bev-mask-bounds --> [z_min: 1.5m]
 - project unrectified pcd to check for the z < 1.5 m issue 
 - establish occ-map correspondance with pointcloud-to-image projection with z_min = 0
 - check effect of passing cam-extrinsics
 - verify cam-extrinsics calculation is correct
-- check occ-map-generation logic, is index tracking needed 
++ check occ-map-generation logic, is index tracking needed 
 - compare with cam-intrinsics set to sbevnet values
 - why is the optical axis parallel to the ground? 
 
-- shouldn't the seg-mask be straight even if the camera is tilted? 
-- compare the variation in ground tilt for all the frames in a leaf folder
-- log R in axis-angles
++ compare the variation in ground tilt for all the frames in a leaf folder
++ log R in axis-angles
 
 + are stereo-images rectified? 
 * use inlier fitting in stereo-rectification check
 
-- use stereo images to generate occ-map 
++ use stereo images to generate occ-map 
 - project everything to the left camera frame (see AI day)
 
-- change the color space for data augmenatation
-- reprojection error 
-- use left-rgb.ply + color comparsion for occ-points
-- visualize the disparity map
-- tune max_disp? 
-- fix column issue in disp_map
++ use left-rgb.ply + color comparsion for occ-points
++ visualize the disparity map
++ tune max_disp? 
++ fix column issue in disp_map
 
 - [why] are the closest vine poles always getting occluded? 
 - [why] everything with z < 1.5m is being marked as occluded (becuase of tractorhood)?
 
 - fix ground plane tilt
 
-- stereo-pcd angles are wrong
++ stereo-pcd angles are wrong
 
-- start bev-mask-generator-DAIRY pipeline 
-- undo tilt correction in sbevnet_get_grid_one
 
-- generate labels using MAVIS file
-- double label logging
-- time label_collapsing step
+- need to P to occ_pcd / stereo_occ_pcd calculations?
+- tune OccMask.DEPTH_THRESHOLD using fx, fy
++ [debug] use OccMap.visualize_pointcloud
+- vertical disparity in left-img and left-img projections
+- sfm-img aligns with stereo-img but doesn't align with left-img. Why? 
+
+- handle na values in stereo-pcd
+- plot NA values in stereo-pcd
++ remove np.meshgrid
++ how does the stereo-img look in case of severe occlusion? 
+- tune disparity for nan disp points
+
+======================
+demo
+======================
+- generate a sample '4' folder
+- alignment of stereo-pcd and sfm-pcd
+- upto 10% improvement
+- show stereo reprojected image
+- show sfm-occ-pcd / stereo-occ-pcd
+- show the case of tractor hood occlusion in stereo-occ-pcd
+- dairy at 1500 frames
+- ipm?
