@@ -26,9 +26,9 @@ class OccMap:
     DEPTH_THRESHOLD = 0.06
     
     @staticmethod
-    def generate_pixel_coordinates(pcd: o3d.t.geometry.PointCloud, 
+    def get_pixel_coordinates(pcd: o3d.t.geometry.PointCloud, 
                               K: np.ndarray, 
-                              P: np.ndarray) -> np.ndarray:
+                              P: np.ndarray = None) -> np.ndarray:
         """
         Generate pixel coordinates from point cloud using camera intrinsic and extrinsic matrices.
         
@@ -42,7 +42,12 @@ class OccMap:
         """
         
         assert K.shape == (3, 3), "camera_intrinsic_matrix must be a 3x3 matrix"
-        assert P.shape == (3, 4), "camera_extrinsic_matrix must be a 3x4 matrix"
+        # assert P.shape == (3, 4), "camera_extrinsic_matrix must be a 3x4 matrix"
+
+        if P is None:
+            # create a 3x4 identity transformation matrix [R|t]
+            # where R is 3x3 identity and t is zero translation
+            P = np.hstack([np.eye(3), np.zeros((3,1))])
 
         X: np.ndarray = pcd.point['positions'].numpy() # [N, 3]
         X_homo: np.ndarray = np.hstack([X, np.ones((X.shape[0], 1))]) # [N, 4]
@@ -62,10 +67,61 @@ class OccMap:
         assert x.shape == (X.shape[0], 2), "pixel coordinates must be a 2D array"
         return x
     
+    # @staticmethod
+    # def generate_depth_buffer(pcd: o3d.t.geometry.PointCloud,
+    #                           img_coords: np.ndarray,
+    #                           img_shape: Tuple[int, int] = (1080, 1920)) -> np.ndarray:
+    #     """Generate depth buffer from projected point cloud coordinates.
+        
+    #     Args:
+    #         pcd: Input point cloud
+    #         img_coords: Nx2 array of projected 2D coordinates
+    #         img_shape: Tuple of (height, width) for output buffer
+            
+    #     Returns:
+    #         np.ndarray: HxW depth buffer containing minimum depth at each pixel
+    #     """
+       
+    #     assert pcd.point['positions'].numpy().shape[0] == img_coords.shape[0], \
+    #         "pcd and img_coords must have the same number of points"
+    #     assert img_coords.shape[1] == 2, \
+    #         "img_coords must be a 2D array with shape [N, 2]"
+
+    #     h, w = img_shape
+        
+    #     u, v = img_coords[:, 0], img_coords[:, 1]
+    #     depths: np.ndarray = pcd.point['positions'].numpy()[:, 2]
+
+    #     assert v.shape == u.shape == depths.shape, \
+    #         "v, u, and depths must have the same shape"
+
+    #     # Create a mask for valid projected points within the bounds
+    #     valid_mask: np.ndarray = ((0 <= v) & (v < h) & (0 <= u) & (u < w))
+
+    #     # log results
+    #     OccMap.logger.info(f"===========================")
+    #     OccMap.logger.info(f"Depth buffer generation:")
+    #     OccMap.logger.info(f"- projected points: {len(img_coords)}")
+    #     OccMap.logger.info(f"- valid projected points: {valid_mask.sum()}")
+    #     OccMap.logger.info(f"- valid projected ratio: {valid_mask.sum() / len(img_coords):.2f}")
+    #     OccMap.logger.info(f"===========================\n")
+
+    #     valid_v: np.ndarray = v[valid_mask]
+    #     valid_u: np.ndarray = u[valid_mask]
+    #     valid_depths: np.ndarray = depths[valid_mask]
+
+    #     depth_buffer: np.ndarray = np.full((h, w), np.inf)
+        
+    #     for u, v, d in zip(valid_u, valid_v, valid_depths):
+    #         depth_buffer[v, u] = min(depth_buffer[v, u], d)
+        
+    #     return depth_buffer
+
     @staticmethod
-    def generate_depth_buffer(pcd: o3d.t.geometry.PointCloud,
-                              img_coords: np.ndarray,
-                              img_shape: Tuple[int, int] = (1080, 1920)) -> np.ndarray:
+    def generate_depth_buffer(sfm_pcd: o3d.t.geometry.PointCloud = None,
+                              stereo_pcd: o3d.t.geometry.PointCloud = None,
+                              K: np.ndarray = None,
+                              depth_buffer_shape: Tuple[int, int] = (1080, 1920)) -> np.ndarray:
         """Generate depth buffer from projected point cloud coordinates.
         
         Args:
@@ -76,39 +132,50 @@ class OccMap:
         Returns:
             np.ndarray: HxW depth buffer containing minimum depth at each pixel
         """
-       
-        assert pcd.point['positions'].numpy().shape[0] == img_coords.shape[0], \
-            "pcd and img_coords must have the same number of points"
-        assert img_coords.shape[1] == 2, \
-            "img_coords must be a 2D array with shape [N, 2]"
-
-        h, w = img_shape
         
-        u, v = img_coords[:, 0], img_coords[:, 1]
-        depths: np.ndarray = pcd.point['positions'].numpy()[:, 2]
-
-        assert v.shape == u.shape == depths.shape, \
-            "v, u, and depths must have the same shape"
-
-        # Create a mask for valid projected points within the bounds
-        valid_mask: np.ndarray = ((0 <= v) & (v < h) & (0 <= u) & (u < w))
-
-        # log results
-        OccMap.logger.info(f"===========================")
-        OccMap.logger.info(f"Depth buffer generation:")
-        OccMap.logger.info(f"- projected points: {len(img_coords)}")
-        OccMap.logger.info(f"- valid projected points: {valid_mask.sum()}")
-        OccMap.logger.info(f"- valid projected ratio: {valid_mask.sum() / len(img_coords):.2f}")
-        OccMap.logger.info(f"===========================\n")
-
-        valid_v: np.ndarray = v[valid_mask]
-        valid_u: np.ndarray = u[valid_mask]
-        valid_depths: np.ndarray = depths[valid_mask]
-
+        assert sfm_pcd is not None, "sfm_pcd is required"
+        assert K is not None, "K is required"
+        assert (depth_buffer_shape == (1080, 1920)), "depth_buffer_shape must be (1080, 1920)"
+       
+        h, w = depth_buffer_shape
+       
+        # project points to image plane
+        sfm_img_projection: np.ndarray = OccMap.get_pixel_coordinates(sfm_pcd, K, P = None)
+        
+        # projections must lie within the depth-mask bounds
+        sfm_mask: np.ndarray = ((0 <= sfm_img_projection[:, 1]) & (sfm_img_projection[:, 1] < h) & 
+                                  (0 <= sfm_img_projection[:, 0]) & (sfm_img_projection[:, 0] < w))
+        # filter valid projections
+        sfm_img_projection: np.ndarray = sfm_img_projection[sfm_mask]
+        
+        # filter points with valid depths
+        sfm_depths: np.ndarray = sfm_pcd.point['positions'].numpy()[:, 2]
+        
+        # generate depth buffer
         depth_buffer: np.ndarray = np.full((h, w), np.inf)
         
-        for u, v, d in zip(valid_u, valid_v, valid_depths):
+
+        # update min-depth for each depth-buffer pixel with sfm-depths
+        for u, v, d in zip(sfm_img_projection[:, 0], sfm_img_projection[:, 1], sfm_depths):
             depth_buffer[v, u] = min(depth_buffer[v, u], d)
+        
+        
+        if stereo_pcd is not None:
+            stereo_img_projection: np.ndarray = OccMap.get_pixel_coordinates(stereo_pcd, K, P = None)
+        
+            stereo_mask: np.ndarray = ((0 <= stereo_img_projection[:, 1]) & (stereo_img_projection[:, 1] < h) & 
+                                      (0 <= stereo_img_projection[:, 0]) & (stereo_img_projection[:, 0] < w))
+
+            stereo_img_projection: np.ndarray = stereo_img_projection[stereo_mask]
+
+            stereo_depths: np.ndarray = stereo_pcd.point['positions'].numpy()[:, 2]
+
+            sfm_depths = sfm_depths[sfm_mask]
+            stereo_depths = stereo_depths[stereo_mask]
+
+            # update depth-buffer pixel with stereo-depths    
+            for u, v, d in zip(stereo_img_projection[:, 0], stereo_img_projection[:, 1], stereo_depths):
+                depth_buffer[v, u] = min(depth_buffer[v, u], d)
         
         return depth_buffer
 
@@ -120,7 +187,7 @@ class OccMap:
                                  output_shape: Tuple[int, int] = (640, 720),
                                  window_name: str = "Projected Points",
                                  point_size: int = 3,
-                                 wait_key: bool = True) -> None:
+                                 ) -> None:
         """Visualize projected points from point cloud onto a 2D image plane.
 
         Args:
@@ -152,12 +219,15 @@ class OccMap:
                 cv2.circle(img, (x, y), point_size, color_bgr, -1)
 
             # resize image to output shape
-            img = cv2.resize(img, output_shape)
-
+            # img = cv2.resize(img, output_shape)
             cv2.imshow(window_name, img)
-            if wait_key:
-                cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            
+            # wait for 'q' key to be pressed
+            while True:
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    cv2.destroyAllWindows()
+                    break
             
             # log results
             OccMap.logger.info(f"===========================")
@@ -219,9 +289,9 @@ class OccMap:
     
 
     @staticmethod
-    def get_occ_pcd(pcd: o3d.t.geometry.PointCloud,
+    def get_sfm_occ_pcd(pcd: o3d.t.geometry.PointCloud,
                      K: np.ndarray,
-                     P: np.ndarray,
+                     P: np.ndarray = None,
                      bb: Dict[str, float] = None,
                      to_crop: bool = True,
                      img_shape: Tuple[int, int] = (1080, 1920)) -> o3d.t.geometry.PointCloud:
@@ -239,25 +309,28 @@ class OccMap:
             o3d.t.geometry.PointCloud: Point cloud with occluded points colored
         """
         assert K.shape == (3, 3), "camera_intrinsic_matrix must be a 3x3 matrix"
-        assert P.shape == (3, 4), "camera_extrinsic_matrix must be a 3x4 matrix"
+        # assert P.shape == (3, 4), "camera_extrinsic_matrix must be a 3x4 matrix"
 
-        
-        
-        OccMap.logger.info(f"===========================")
-        OccMap.logger.info(f"P: \n{P}")
-        OccMap.logger.info(f"===========================\n")
+
+        logger = get_logger("get_occ_pcd", level=logging.INFO)
+        if P is None:
+            # create a 3x4 identity transformation matrix [R|t]
+            # where R is 3x3 identity and t is zero translation
+            P = np.hstack([np.eye(3), np.zeros((3,1))])
 
         # crop pcd
         pcd_cropped = crop_pcd(pcd, bb) if to_crop else pcd
         
         # [N, 2]
-        img_coords: np.ndarray = OccMap.generate_pixel_coordinates(pcd_cropped, K, P)
+        img_coords: np.ndarray = OccMap.get_pixel_coordinates(pcd_cropped, K, P)
+
         
         # optionally visualize the projected points
-        OccMap.visualize_projected_points(pcd_cropped, img_coords, img_shape)
-
+        OccMap.visualize_projected_points(pcd_cropped, img_coords, img_shape, output_shape = (1080, 1920))
+        
         # [h, w]
-        depth_buffer: np.ndarray = OccMap.generate_depth_buffer(pcd_cropped, img_coords)
+        depth_buffer: np.ndarray = OccMap.generate_depth_buffer(sfm_pcd = pcd_cropped,
+                                                                 K = K)
 
         h, w = img_shape
         u, v = img_coords[:, 0], img_coords[:, 1]
@@ -280,7 +353,7 @@ class OccMap:
         bound_color = np.array([142, 68, 173])   # wisteria purple
         
         OccMap.logger.info(f"===========================")
-        OccMap.logger.info(f"Occ-mask generation:")
+        OccMap.logger.info(f"SFM OCC-MASK GENERATION:")
         OccMap.logger.info(f"- total points: {len(depths)}")
         OccMap.logger.info(f"- hidden points: {hidden_mask.sum()}")
         OccMap.logger.info(f"- bound points: {bound_mask.sum()}")
@@ -681,3 +754,69 @@ class OccMap:
         OccMap.logger.info(f"===========================\n")
         
         return colored_pcd
+
+    @staticmethod
+    def get_stereo_occ_pcd(sfm_pcd: o3d.t.geometry.PointCloud,
+                           stereo_pcd: o3d.t.geometry.PointCloud,
+                           K: np.ndarray,
+                           to_crop: bool = True,
+                           bb: Dict[str, float] = None,
+                           img_shape: Tuple[int, int] = (1080, 1920), 
+                           logging_level: int = 0) -> o3d.t.geometry.PointCloud:
+        """Generate point cloud with occluded points colored using both SfM and stereo point clouds.
+        
+        Args:
+            sfm_pcd: Input SfM point cloud
+            stereo_pcd: Input stereo point cloud
+            K: 3x3 camera intrinsic matrix
+            P: 3x4 camera extrinsic matrix [R|t]
+            bb: Optional bounding box for cropping
+            to_crop: Whether to crop the point clouds
+            img_shape: Tuple of (height, width) for projection
+            
+        Returns:
+            o3d.t.geometry.PointCloud: Point cloud with occluded points colored
+        """
+        assert K.shape == (3, 3), "camera_intrinsic_matrix must be a 3x3 matrix"
+        assert img_shape == (1080, 1920), "img_shape must be (1080, 1920)"
+        assert bb is not None if to_crop else True, "bounding box must be provided"
+        
+        logger = get_logger("occ_mask_generator", logging_level)
+
+        # crop point clouds if requested
+        sfm_pcd_cropped = crop_pcd(sfm_pcd, bb) if to_crop else sfm_pcd
+        stereo_pcd_cropped = crop_pcd(stereo_pcd, bb) if to_crop else stereo_pcd
+        
+        img_coords = OccMap.get_pixel_coordinates(sfm_pcd_cropped, K)
+        sfm_u , sfm_v = img_coords[:, 0], img_coords[:, 1]
+        sfm_depths = sfm_pcd_cropped.point['positions'].numpy()[:, 2]
+        
+        depth_buffer: np.ndarray = OccMap.generate_depth_buffer(sfm_pcd_cropped, stereo_pcd_cropped, K)
+        h, w = img_shape
+
+        sfm_hidden_mask: np.ndarray = np.zeros(len(sfm_depths), dtype=bool)
+        sfm_bound_mask: np.ndarray = np.zeros(len(sfm_depths), dtype=bool)
+
+        for i, (u, v, d) in enumerate(zip(sfm_u, sfm_v, sfm_depths)):
+            if 0 <= u < w and 0 <= v < h:
+                if d > depth_buffer[v, u] + OccMap.DEPTH_THRESHOLD:
+                    sfm_hidden_mask[i] = True
+            else:
+                sfm_bound_mask[i] = True
+        
+        # color points using the new method
+        hidden_color = np.array([241, 196, 15])     # sun yellow
+        bound_color = np.array([142, 68, 173])   # wisteria purple
+        
+        OccMap.logger.info(f"===========================")
+        OccMap.logger.info(f"STEREO OCC-MASK GENERATION:")
+        OccMap.logger.info(f"- total points: {len(sfm_depths)}")
+        OccMap.logger.info(f"- hidden points: {sfm_hidden_mask.sum()}")
+        OccMap.logger.info(f"- bound points: {sfm_bound_mask.sum()}")
+        OccMap.logger.info(f"- % hidden: {100 * sfm_hidden_mask.sum() / len(sfm_depths):.2f}%")
+        OccMap.logger.info(f"- % bound: {100 * sfm_bound_mask.sum() / len(sfm_depths):.2f}%")
+        OccMap.logger.info(f"- % occ: {100 * (sfm_hidden_mask.sum() + sfm_bound_mask.sum()) / len(sfm_depths):.2f}%")
+        OccMap.logger.info(f"===========================\n")
+
+        OccMap.add_mask_color_to_pcd(sfm_pcd_cropped, [sfm_hidden_mask, sfm_bound_mask], [hidden_color, bound_color])
+        return sfm_pcd_cropped
