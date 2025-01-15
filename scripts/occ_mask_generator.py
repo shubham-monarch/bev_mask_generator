@@ -23,7 +23,8 @@ class OccMap:
 
     # class-level variables
     logger = get_logger("occlusion_map", level=logging.INFO)
-    DEPTH_THRESHOLD = 0.06
+    # DEPTH_THRESHOLD = 0.06
+    DEPTH_THRESHOLD = 0.1
     
     @staticmethod
     def get_pixel_coordinates(pcd: o3d.t.geometry.PointCloud, 
@@ -72,7 +73,8 @@ class OccMap:
     def generate_depth_buffer(sfm_pcd: o3d.t.geometry.PointCloud = None,
                               stereo_pcd: o3d.t.geometry.PointCloud = None,
                               K: np.ndarray = None,
-                              depth_buffer_shape: Tuple[int, int] = (1080, 1920)) -> np.ndarray:
+                              depth_buffer_shape: Tuple[int, int] = (1080, 1920),
+                              logging_level: int = logging.INFO) -> np.ndarray:
         """Generate depth buffer from projected point cloud coordinates.
         
         Args:
@@ -88,27 +90,60 @@ class OccMap:
         assert K is not None, "K is required"
         assert (depth_buffer_shape == (1080, 1920)), "depth_buffer_shape must be (1080, 1920)"
        
+        logger = get_logger("generate_depth_buffer", level=logging_level)
+
         h, w = depth_buffer_shape
        
         # project points to image plane
         sfm_img_projection: np.ndarray = OccMap.get_pixel_coordinates(sfm_pcd, K, P = None)
         
+        # logger.info("───────────────────────────────")
+        # logger.info(f"sfm_img_projection.shape: {sfm_img_projection.shape}")
+        # logger.info("───────────────────────────────")
+
         # projections must lie within the depth-mask bounds
         sfm_mask: np.ndarray = ((0 <= sfm_img_projection[:, 1]) & (sfm_img_projection[:, 1] < h) & 
                                   (0 <= sfm_img_projection[:, 0]) & (sfm_img_projection[:, 0] < w))
+        
+        # logger.info("───────────────────────────────")
+        # logger.info(f"sfm_mask.shape: {sfm_mask.shape}")
+        # logger.info("───────────────────────────────")
+        
         # filter valid projections
         sfm_img_projection: np.ndarray = sfm_img_projection[sfm_mask]
+
+        # logger.info("───────────────────────────────")
+        # logger.info(f"sfm_img_projection.shape: {sfm_img_projection.shape}")
+        # logger.info("───────────────────────────────")
         
         # filter points with valid depths
         sfm_depths: np.ndarray = sfm_pcd.point['positions'].numpy()[:, 2]
+
+        # logger.info("───────────────────────────────")
+        # logger.info(f"sfm_depths.shape: {sfm_depths.shape}")
+        # logger.info("───────────────────────────────")
+
+        sfm_depths = sfm_depths[sfm_mask]
+        
+        # logger.info("───────────────────────────────")
+        # logger.info(f"sfm_depths.shape: {sfm_depths.shape}")
+        # logger.info("───────────────────────────────")
         
         # generate depth buffer
         depth_buffer: np.ndarray = np.full((h, w), np.inf)
-        
 
+        assert sfm_depths.shape[0] == sfm_img_projection.shape[0], \
+            f"The number of points in sfm_depths " \
+            f"({sfm_depths.shape}) " \
+            f"must match the number of points in sfm_img_projection " \
+            f"({sfm_img_projection.shape})"
+        
         # update min-depth for each depth-buffer pixel with sfm-depths
         for u, v, d in zip(sfm_img_projection[:, 0], sfm_img_projection[:, 1], sfm_depths):
-            depth_buffer[v, u] = min(depth_buffer[v, u], d)
+            if d > 0:
+                depth_buffer[v, u] = min(depth_buffer[v, u], d)
+            else:
+                depth_buffer[v, u] = np.inf
         
         
         if stereo_pcd is not None:
@@ -120,14 +155,21 @@ class OccMap:
             stereo_img_projection: np.ndarray = stereo_img_projection[stereo_mask]
 
             stereo_depths: np.ndarray = stereo_pcd.point['positions'].numpy()[:, 2]
-
-            sfm_depths = sfm_depths[sfm_mask]
             stereo_depths = stereo_depths[stereo_mask]
+
+            assert stereo_depths.shape[0] == stereo_img_projection.shape[0], \
+                f"The number of points in stereo_depths " \
+                f"({stereo_depths.shape}) " \
+                f"must match the number of points in stereo_img_projection " \
+                f"({stereo_img_projection.shape})"
 
             # update depth-buffer pixel with stereo-depths    
             for u, v, d in zip(stereo_img_projection[:, 0], stereo_img_projection[:, 1], stereo_depths):
-                depth_buffer[v, u] = min(depth_buffer[v, u], d)
-        
+                if d > 0:
+                    depth_buffer[v, u] = min(depth_buffer[v, u], d)
+                else:
+                    depth_buffer[v, u] = np.inf
+
         return depth_buffer
     
     @staticmethod
@@ -315,7 +357,11 @@ class OccMap:
 
         
         # optionally visualize the projected points
-        OccMap.visualize_projected_points(pcd_cropped, img_coords, img_shape, output_shape = (1080, 1920))
+        OccMap.visualize_projected_points(pcd_cropped, 
+                                          img_coords, 
+                                          img_shape, 
+                                          output_shape = (1080, 1920),
+                                          visualize=False)
         
         # [h, w]
         depth_buffer: np.ndarray = OccMap.generate_depth_buffer(sfm_pcd = pcd_cropped,
@@ -584,12 +630,14 @@ class OccMap:
         
         nan_count: int = np.isnan(disparity).sum()
         OccMap.logger.info(f"===========================")
-        OccMap.logger.info(f"Count of NaN values in disparity: {nan_count}")
+        OccMap.logger.info(f"[get_stereo_pcd] Count of NaN values in disparity: {nan_count}")
         OccMap.logger.info(f"===========================\n")
 
         # replace nan values with 0 for depth calculation
-        disparity = np.nan_to_num(disparity, nan=0.0)
-
+        # disparity = np.nan_to_num(disparity, nan=0.0)
+        # disparity = np.nan_to_num(disparity, nan=120.0)
+        disparity = np.nan_to_num(disparity, nan=150.0)
+        
         # get image dimensions
         h, w = disparity.shape
         
@@ -626,7 +674,7 @@ class OccMap:
         pcd.point.colors = o3d.core.Tensor(colors.astype(np.uint8))
 
         OccMap.logger.info(f"===========================")
-        OccMap.logger.info(f"Generated pointcloud with {len(points)} points")
+        OccMap.logger.info(f"[get_stereo_pcd] Generated pointcloud with {len(points)} points")
         OccMap.logger.info(f"===========================\n")
         
         return pcd
