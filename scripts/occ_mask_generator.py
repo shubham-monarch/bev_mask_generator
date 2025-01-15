@@ -17,42 +17,6 @@ from scripts.logger import get_logger
 from scripts.helpers import crop_pcd
 
 
-class StereoImg:
-    """Class for storing stereo images and their corresponding camera parameters."""
-    def __init__(self, left_img: np.ndarray, right_img: np.ndarray, K: np.ndarray, P: np.ndarray):
-        self.left_img = left_img
-        self.right_img = right_img
-        self.K = K
-        self.P = P
-
-          # # distortion params
-        # k1 = 0.0
-        # k2 = 0.0
-        # p1 = 0.0
-        # p2 = 0.0
-        # distortion = np.array([k1, k2, p1, p2])
-
-
-        # # camera intrinsic matrix
-        # K = np.array([[1090.536, 0, 954.99],
-        #                 [0, 1090.536, 523.12],
-        #                 [0, 0, 1]], dtype=np.float32)
-
-
-        # # stereo-rectification
-        # # h, w = left_image.shape[:2]
-        # R = np.eye(3)
-        # baseline = -0.11972
-        # t = np.array([baseline,0,0])
-
-    def get_K(self) -> np.ndarray:
-        pass
-    
-    def get_P(self) -> np.ndarray:
-        pass
-    
-    def get_stereo_pcd(self) -> o3d.t.geometry.PointCloud:
-        pass
 
 class OccMap:
     """Class for generating occlusion maps from point clouds using depth buffer approach."""
@@ -485,7 +449,7 @@ class OccMap:
 
 
     @staticmethod
-    def get_stereo_disparity(left_image: np.ndarray, right_image: np.ndarray) -> np.ndarray:
+    def get_stereo_disparity(img_L: np.ndarray, img_R: np.ndarray) -> np.ndarray:
         """Compute disparity map for stereo image pair.
         
         Args:
@@ -496,12 +460,12 @@ class OccMap:
             np.ndarray: Disparity map
         """
         
-        img_L: np.ndarray = cv2.resize(left_image, (480, 640))
-        img_R: np.ndarray = cv2.resize(right_image, (480, 640))
+        # img_L: np.ndarray = cv2.resize(left_image, (480, 640))
+        # img_R: np.ndarray = cv2.resize(right_image, (480, 640))
 
         window_size: int = 3
         min_disp: int = -2
-        max_disp: int = 32
+        max_disp: int = 160
 
         stereo_sgbm = cv2.StereoSGBM_create(
             minDisparity=min_disp,
@@ -533,7 +497,7 @@ class OccMap:
     def get_stereo_pcd(left_img: np.ndarray, right_img: np.ndarray, 
                        K: np.ndarray,
                        baseline: float,
-                       final_h: int, final_w: int) -> o3d.t.geometry.PointCloud:
+                       ) -> o3d.t.geometry.PointCloud:
         """Generate point cloud from stereo image pair.
         
         Args:
@@ -551,25 +515,26 @@ class OccMap:
         assert left_img.shape == (1080,1920,3), f"Left image shape must be (1080,1920,3) but is {left_img.shape}"
         assert right_img.shape == (1080,1920,3), f"Right image shape must be (1080,1920,3) but is {right_img.shape}"
 
-        # resize input images to match final dimensions
-        resized_L: np.ndarray = cv2.resize(left_img, (final_w, final_h))
-        resized_R: np.ndarray = cv2.resize(right_img, (final_w, final_h))
+        # # resize input images to match final dimensions
+        # resized_L: np.ndarray = cv2.resize(left_img, (final_w, final_h))
+        # resized_R: np.ndarray = cv2.resize(right_img, (final_w, final_h))
         
-        # adjust camera intrinsics for resized images
-        scale_x: float = final_w / left_img.shape[1]
-        scale_y: float = final_h / left_img.shape[0]
+        # # adjust camera intrinsics for resized images
+        # scale_x: float = final_w / left_img.shape[1]
+        # scale_y: float = final_h / left_img.shape[0]
 
-        # scale camera intrinsics
-        K_scaled: np.ndarray = K.copy()
-        K_scaled[0, 0] *= scale_x
-        K_scaled[1, 1] *= scale_y
-        K_scaled[0, 2] *= scale_x
-        K_scaled[1, 2] *= scale_y
+        # # scale camera intrinsics
+        # K_scaled: np.ndarray = K.copy()
+        # K_scaled[0, 0] *= scale_x
+        # K_scaled[1, 1] *= scale_y
+        # K_scaled[0, 2] *= scale_x
+        # K_scaled[1, 2] *= scale_y
 
         # get disparity map
-        disparity: np.ndarray = OccMap.get_stereo_disparity(resized_L, resized_R)
+        # disparity: np.ndarray = OccMap.get_stereo_disparity(resized_L, resized_R)
+        disparity: np.ndarray = OccMap.get_stereo_disparity(left_img, right_img)
 
-        assert disparity.shape == resized_L.shape[:2], "Disparity map shape does not match resized left image"
+        assert disparity.shape == left_img.shape[:2], "Disparity map shape does not match left image"
         
         nan_count: int = np.isnan(disparity).sum()
         OccMap.logger.info(f"===========================")
@@ -582,13 +547,13 @@ class OccMap:
         # get image dimensions
         h, w = disparity.shape
         
-        assert (h, w) == (640, 480), "Disparity map shape does not match final dimensions"
+        # assert (h, w) == (640, 480), "Disparity map shape does not match final dimensions"
         
         # create mesh grid for pixel coordinates
         v, u = np.mgrid[0:h, 0:w]
         
         # compute 3d points
-        focal_length: float = K_scaled[0, 0]
+        focal_length: float = K[0, 0]
         
         # avoid division by zero in depth calculation
         mask: np.ndarray = disparity > 0
@@ -596,8 +561,8 @@ class OccMap:
         depth[mask] = (focal_length * baseline) / disparity[mask]
         
         # calculate 3D coordinates
-        x: np.ndarray = (u - K_scaled[0, 2]) * depth / focal_length
-        y: np.ndarray = (v - K_scaled[1, 2]) * depth / focal_length
+        x: np.ndarray = (u - K[0, 2]) * depth / focal_length
+        y: np.ndarray = (v - K[1, 2]) * depth / focal_length
         z: np.ndarray = depth
 
         # stack coordinates
@@ -608,7 +573,7 @@ class OccMap:
         points = points[valid_points_mask]
         
         # get colors from resized left image
-        colors: np.ndarray = resized_L.astype(np.uint8)
+        colors: np.ndarray = left_img.astype(np.uint8)
         colors = colors[valid_points_mask]
 
         # create open3d tensor pointcloud
@@ -623,26 +588,96 @@ class OccMap:
         return pcd
 
     @staticmethod
-    def combine_pcds(pcd_1: o3d.t.geometry.PointCloud, pcd_2: o3d.t.geometry.PointCloud) -> o3d.t.geometry.PointCloud:
-        """Combine two point clouds."""
-
+    def combine_pcds(pcd_1: o3d.t.geometry.PointCloud, 
+                     pcd_2: o3d.t.geometry.PointCloud,
+                     use_distinct_colors: bool = False,
+                     color_1: np.ndarray = np.array([255, 255, 0]),  # yellow
+                     color_2: np.ndarray = np.array([255, 0, 255])   # magenta
+                     ) -> o3d.t.geometry.PointCloud:
+        """Combine two point clouds with option to preserve original colors or use distinct colors.
         
-
+        Args:
+            pcd_1: First point cloud
+            pcd_2: Second point cloud
+            use_distinct_colors: If True, colors points with distinct colors for visualization
+                               If False, preserves original colors (default: False)
+            color_1: RGB color for first point cloud if use_distinct_colors is True (default: yellow)
+            color_2: RGB color for second point cloud if use_distinct_colors is True (default: magenta)
+            
+        Returns:
+            o3d.t.geometry.PointCloud: Combined point cloud with specified coloring
+        """
         # stack positions
-        position_tensors: List[np.ndarray] = [pcd_1.point['positions'].numpy(), pcd_2.point['positions'].numpy()]
-        stacked_positions: o3c.Tensor = o3c.Tensor(np.vstack(position_tensors), dtype=o3c.Dtype.Float32)
+        position_tensors: List[np.ndarray] = [pcd_1.point['positions'].numpy(), 
+                                             pcd_2.point['positions'].numpy()]
+        stacked_positions: o3c.Tensor = o3c.Tensor(np.vstack(position_tensors), 
+                                                  dtype=o3c.Dtype.Float32)
         
-        # set colors for pcd_1 to yellow and pcd_2 to red
-        color_tensors: List[np.ndarray] = [np.tile(np.array([255, 255, 0]), (pcd_1.point['positions'].shape[0], 1)),
-                                            np.tile(np.array([255, 0, 0]), (pcd_2.point['positions'].shape[0], 1))]
-        stacked_colors: o3c.Tensor = o3c.Tensor(np.vstack(color_tensors), dtype=o3c.Dtype.UInt8)
+        # handle colors based on mode
+        if use_distinct_colors:
+            color_tensors: List[np.ndarray] = [
+                np.tile(color_1, (pcd_1.point['positions'].shape[0], 1)),
+                np.tile(color_2, (pcd_2.point['positions'].shape[0], 1))
+            ]
+        else:
+            color_tensors: List[np.ndarray] = [
+                pcd_1.point['colors'].numpy(),
+                pcd_2.point['colors'].numpy()
+            ]
+        
+        stacked_colors: o3c.Tensor = o3c.Tensor(np.vstack(color_tensors), 
+                                               dtype=o3c.Dtype.UInt8)
 
-        # Create a unified point cloud
+        # create a unified point cloud
         map_to_tensors: Dict[str, o3c.Tensor] = {
             'positions': stacked_positions,
             'colors': stacked_colors        
         }
 
-        # Create a unified point cloud
         combined_pcd: o3d.t.geometry.PointCloud = o3d.t.geometry.PointCloud(map_to_tensors)    
         return combined_pcd
+
+    @staticmethod
+    def color_pcd(pcd: o3d.t.geometry.PointCloud,
+                  color: np.ndarray = np.array([173, 216, 230, 200]),  # light blue with alpha=200
+                  ) -> o3d.t.geometry.PointCloud:
+        """Color all points in a point cloud with a specified color.
+        
+        Args:
+            pcd: Input point cloud
+            color: RGBA color array (default: semi-transparent light blue)
+                   Values should be in range [0, 255] for RGB and alpha
+                   If RGB color is provided without alpha, full opacity is assumed
+        
+        Returns:
+            o3d.t.geometry.PointCloud: Point cloud with all points colored
+            
+        Note:
+            Alpha value in color is used for visualization only when rendering
+            the point cloud. The stored colors in the point cloud will be RGB.
+        """
+        # ensure input point cloud is not modified
+        colored_pcd = o3d.t.geometry.PointCloud(pcd)
+        
+        # handle both RGB and RGBA color inputs
+        if len(color) == 4:
+            rgb_color = color[:3]
+            alpha = color[3] / 255.0  # normalize alpha to [0,1]
+            # apply alpha by blending with white
+            rgb_color = (rgb_color * alpha + 255 * (1 - alpha)).astype(np.uint8)
+        else:
+            rgb_color = color
+        
+        # create color array with same color for all points
+        num_points = len(colored_pcd.point['positions'])
+        colors = np.tile(rgb_color, (num_points, 1))
+        
+        # assign colors to point cloud
+        colored_pcd.point['colors'] = o3c.Tensor(colors, dtype=o3c.Dtype.UInt8)
+        
+        OccMap.logger.info(f"===========================")
+        OccMap.logger.info(f"Colored point cloud with {len(colors)} points")
+        OccMap.logger.info(f"Using color: RGB{tuple(rgb_color)}")
+        OccMap.logger.info(f"===========================\n")
+        
+        return colored_pcd
