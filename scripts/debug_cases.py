@@ -17,6 +17,7 @@ from scripts.logger import get_logger
 from scripts.bev_mask_generator_dairy import BEVGenerator
 from scripts.data_generator_s3 import DataGeneratorS3, LeafFolder
 from scripts.occ_mask_generator import OccMap
+from scripts.helpers import get_zed_camera_params, cam_extrinsics, read_images_binary
 
 logger = get_logger("debug_cases")
 
@@ -70,38 +71,53 @@ def plot_segmentation_classes(mask: np.ndarray, path: str = None, title: str = N
         plt.show()
     plt.close()
 
-def test_bev_generation():
-    """Test basic BEV generation functionality (Case 1)"""
-    src_folder = "train-data"
-    dst_folder = "debug/output-seg-masks"
-    bev_generator = BEVGenerator()
-
-    crop_bb = {'x_min': -5, 'x_max': 5, 'z_min': 0, 'z_max': 10}
-    nx = 400
-    nz = 400
-
-    os.makedirs(dst_folder, exist_ok=True)
+def test_aws_occ_generation():
+    """Case 10: Test occlusion map generation [aws version]"""
+    pcd_dir = Path("debug/frames-4")
+    output_dirs = {
+        "seg_masks": pcd_dir / "seg-masks",
+        "rectified_pcd": pcd_dir / "rectified-pcd",
+        "left_img": pcd_dir / "left-imgs",
+        "right_img": pcd_dir / "right-imgs",
+        "occ_pcd": pcd_dir / "occ-pcd"
+    }
     
-    left_segmented_labelled_files = []
-    total_files = sum(len(files) for _, _, files in os.walk(src_folder) if 'left-segmented-labelled.ply' in files)
+    for dir_path in output_dirs.values():
+        dir_path.mkdir(parents=True, exist_ok=True)
     
-    with tqdm(total=total_files, desc="Processing files", ncols=100) as pbar:
-        for root, _, files in os.walk(src_folder):
-            for file in files:
-                if file == 'left-segmented-labelled.ply':
-                    file_path = os.path.join(root, file)
-                    left_segmented_labelled_files.append(file_path)
-
-                    try:
-                        pcd_input = o3d.t.io.read_point_cloud(file_path)
-                        seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(
-                            pcd_input, nx=nx, nz=nz, bb=crop_bb
-                        )
-                        output_rgb_path = os.path.join(dst_folder, f"seg-mask-rgb-{os.path.basename(root)}.png")
-                        cv2.imwrite(output_rgb_path, seg_mask_rgb)
-                    except Exception as e:
-                        logger.error(f"Error processing {file_path}: {e}")
-                    pbar.update(1)
+    OCC_FOLDER_URI = ["s3://occupancy-dataset/occ-dataset/vineyards/gallo/"]
+    data_generator_s3 = DataGeneratorS3(
+        src_URIs=OCC_FOLDER_URI,
+        dest_folder=None,
+        index_json="dummy",
+        color_map="dummy",
+        crop_bb={"x": 0, "y": 0, "w": 1, "h": 1, "d": 1},
+        nx=1,
+        nz=1
+    )
+    
+    leaf_URIs = data_generator_s3.get_leaf_folders()
+    
+    for idx, leaf_URI in enumerate(leaf_URIs):
+        try:
+            logger.info(f"Processing leaf URI: {leaf_URI}")
+            
+            leaf_folder = LeafFolder(
+                src_URI=leaf_URI,
+                dest_URI="dummy_dest",
+                index_json="dummy_index.json",
+                crop_bb={"x": 0, "y": 0, "z": 0, "w": 1, "h": 1, "d": 1},
+                color_map="dummy_color_map",
+                nx=1,
+                nz=1
+            )
+            
+            # Process PCD and images
+            # [Add implementation details from debug.py Case 10]
+            
+        except Exception as e:
+            logger.error(f"Error processing {leaf_URI}: {str(e)}")
+            logger.error(traceback.format_exc())
 
 def test_dairy_masks():
     """Test mask generation for dairy environment (Case 9)"""
@@ -154,7 +170,7 @@ def test_dairy_masks():
             logger.error(traceback.format_exc())
 
 def test_occ_generation():
-    """Test occlusion map generation (Case 8)"""
+    """Case 8: Test occlusion map generation"""
     pcd_dir = Path("debug/frames-4")
     output_dirs = {
         "seg_masks": pcd_dir / "seg-masks",
@@ -246,12 +262,53 @@ def test_occ_generation():
             logger.error(f"Error processing {pcd_path}: {str(e)}")
             logger.error(traceback.format_exc())
 
-def test_camera_params():
-    """Test camera parameters (Case 2)"""
-    from scripts.helpers import get_zed_camera_params
+def test_image_size():
+    """Case 7: Check image size"""
+    img_path = "data/train-data/0/_left.jpg"
+    image = cv2.imread(img_path)
+    if image is not None:
+        height, width, _ = image.shape
+        logger.info(f"Image size: {width}x{height}")
+    else:
+        logger.error("Failed to read the image")
+
+def test_camera_extrinsics():
+    """Case 6: Testing bev_generator.updated_camera_extrinsics()"""
+    bev_generator = BEVGenerator()
+    ground_id = bev_generator.LABELS["NAVIGABLE_SPACE"]["id"]
+    camera_matrix = np.array([[1093.2768, 0, 964.989],
+                           [0, 1093.2768, 569.276],
+                           [0, 0, 1]], dtype=np.float32)
     
-    camera_params = get_zed_camera_params("debug/front_2024-06-05-09-14-54.svo")
-    logger.info(f"Camera parameters: {camera_params}")
+    pcd_input = o3d.t.io.read_point_cloud("debug/left-segmented-labelled.ply")
+    pcd_rectified = bev_generator.tilt_rectification(pcd_input)
+    
+    R = bev_generator.compute_tilt_matrix(pcd_input)
+    yaw_i, pitch_i, roll_i = bev_generator.rotation_matrix_to_ypr(R)
+    
+    logger.info(f"Initial angles - yaw: {yaw_i}, pitch: {pitch_i}, roll: {roll_i}")
+    
+    is_orthogonal = np.allclose(np.dot(R.T, R), np.eye(3), atol=1e-6)
+    logger.info(f"Is rotation matrix orthogonal? {is_orthogonal}")
+    
+    R_transpose = R.T
+    yaw_f, pitch_f, roll_f = bev_generator.rotation_matrix_to_ypr(R_transpose)
+    logger.info(f"Final angles - yaw: {yaw_f}, pitch: {pitch_f}, roll: {roll_f}")
+    
+    # Test projection
+    img_i = project_pcd_to_camera(pcd_input, camera_matrix, (1920, 1080), 
+                                 rvec=np.zeros((3, 1)), tvec=np.zeros((3, 1)))
+    
+    rvec, _ = cv2.Rodrigues(R_transpose)
+    img_f = project_pcd_to_camera(pcd_rectified, camera_matrix, (1920, 1080), 
+                                 rvec=rvec, tvec=np.zeros((3, 1)))
+
+def test_bev_generator():
+    """Case 5: Testing BEVGenerator"""
+    pcd_input = o3d.t.io.read_point_cloud("debug/frames/frame-2686/left-segmented-labelled.ply")
+    bev_generator = BEVGenerator()
+    pcd_rectified = bev_generator.tilt_rectification(pcd_input)
+    logger.info("BEV generation test completed")
 
 def test_camera_projection():
     """Test pointcloud to camera projection (Case 4)"""
@@ -285,6 +342,13 @@ def test_camera_projection():
     cv2.imshow("Projected Points", img)
     cv2.waitKey(0)
     cv2.destroyAllWindows() 
+
+def test_camera_params():
+    """Test camera parameters (Case 2)"""
+    from scripts.helpers import get_zed_camera_params
+    
+    camera_params = get_zed_camera_params("debug/front_2024-06-05-09-14-54.svo")
+    logger.info(f"Camera parameters: {camera_params}")
 
 def test_segmentation_masks(case_1=True):
     """Case 1: Generate segmentation masks"""
@@ -340,115 +404,35 @@ def test_segmentation_masks(case_1=True):
         vis.run()
         vis.destroy_window()
 
-def test_camera_params():
-    """Case 2: Testing CAMERA_PARAMS"""
-    camera_params = get_zed_camera_params("debug/front_2024-06-05-09-14-54.svo")
-    logger.info(f"Camera parameters: {camera_params}")
-
-def test_camera_projection():
-    """Case 4: Testing pointcloud to camera projection"""
-    # [Implementation remains the same...]
-
-def test_bev_generator():
-    """Case 5: Testing BEVGenerator"""
-    pcd_input = o3d.t.io.read_point_cloud("debug/frames/frame-2686/left-segmented-labelled.ply")
+def test_bev_generation():
+    """Test basic BEV generation functionality (Case 1)"""
+    src_folder = "train-data"
+    dst_folder = "debug/output-seg-masks"
     bev_generator = BEVGenerator()
-    pcd_rectified = bev_generator.tilt_rectification(pcd_input)
-    logger.info("BEV generation test completed")
 
-def test_camera_extrinsics():
-    """Case 6: Testing bev_generator.updated_camera_extrinsics()"""
-    bev_generator = BEVGenerator()
-    ground_id = bev_generator.LABELS["NAVIGABLE_SPACE"]["id"]
-    camera_matrix = np.array([[1093.2768, 0, 964.989],
-                           [0, 1093.2768, 569.276],
-                           [0, 0, 1]], dtype=np.float32)
-    
-    pcd_input = o3d.t.io.read_point_cloud("debug/left-segmented-labelled.ply")
-    pcd_rectified = bev_generator.tilt_rectification(pcd_input)
-    
-    R = bev_generator.compute_tilt_matrix(pcd_input)
-    yaw_i, pitch_i, roll_i = bev_generator.rotation_matrix_to_ypr(R)
-    
-    logger.info(f"Initial angles - yaw: {yaw_i}, pitch: {pitch_i}, roll: {roll_i}")
-    
-    is_orthogonal = np.allclose(np.dot(R.T, R), np.eye(3), atol=1e-6)
-    logger.info(f"Is rotation matrix orthogonal? {is_orthogonal}")
-    
-    R_transpose = R.T
-    yaw_f, pitch_f, roll_f = bev_generator.rotation_matrix_to_ypr(R_transpose)
-    logger.info(f"Final angles - yaw: {yaw_f}, pitch: {pitch_f}, roll: {roll_f}")
-    
-    # Test projection
-    img_i = project_pcd_to_camera(pcd_input, camera_matrix, (1920, 1080), 
-                                 rvec=np.zeros((3, 1)), tvec=np.zeros((3, 1)))
-    
-    rvec, _ = cv2.Rodrigues(R_transpose)
-    img_f = project_pcd_to_camera(pcd_rectified, camera_matrix, (1920, 1080), 
-                                 rvec=rvec, tvec=np.zeros((3, 1)))
+    crop_bb = {'x_min': -5, 'x_max': 5, 'z_min': 0, 'z_max': 10}
+    nx = 400
+    nz = 400
 
-def test_image_size():
-    """Case 7: Check image size"""
-    img_path = "data/train-data/0/_left.jpg"
-    image = cv2.imread(img_path)
-    if image is not None:
-        height, width, _ = image.shape
-        logger.info(f"Image size: {width}x{height}")
-    else:
-        logger.error("Failed to read the image")
+    os.makedirs(dst_folder, exist_ok=True)
+    
+    left_segmented_labelled_files = []
+    total_files = sum(len(files) for _, _, files in os.walk(src_folder) if 'left-segmented-labelled.ply' in files)
+    
+    with tqdm(total=total_files, desc="Processing files", ncols=100) as pbar:
+        for root, _, files in os.walk(src_folder):
+            for file in files:
+                if file == 'left-segmented-labelled.ply':
+                    file_path = os.path.join(root, file)
+                    left_segmented_labelled_files.append(file_path)
 
-def test_occ_generation():
-    """Case 8: Test occlusion map generation"""
-    # [Implementation remains the same...]
-
-def test_dairy_masks():
-    """Case 9: Test mask generation for dairy environment"""
-    # [Implementation remains the same...]
-
-def test_aws_occ_generation():
-    """Case 10: Test occlusion map generation [aws version]"""
-    pcd_dir = Path("debug/frames-4")
-    output_dirs = {
-        "seg_masks": pcd_dir / "seg-masks",
-        "rectified_pcd": pcd_dir / "rectified-pcd",
-        "left_img": pcd_dir / "left-imgs",
-        "right_img": pcd_dir / "right-imgs",
-        "occ_pcd": pcd_dir / "occ-pcd"
-    }
-    
-    for dir_path in output_dirs.values():
-        dir_path.mkdir(parents=True, exist_ok=True)
-    
-    OCC_FOLDER_URI = ["s3://occupancy-dataset/occ-dataset/vineyards/gallo/"]
-    data_generator_s3 = DataGeneratorS3(
-        src_URIs=OCC_FOLDER_URI,
-        dest_folder=None,
-        index_json="dummy",
-        color_map="dummy",
-        crop_bb={"x": 0, "y": 0, "w": 1, "h": 1, "d": 1},
-        nx=1,
-        nz=1
-    )
-    
-    leaf_URIs = data_generator_s3.get_leaf_folders()
-    
-    for idx, leaf_URI in enumerate(leaf_URIs):
-        try:
-            logger.info(f"Processing leaf URI: {leaf_URI}")
-            
-            leaf_folder = LeafFolder(
-                src_URI=leaf_URI,
-                dest_URI="dummy_dest",
-                index_json="dummy_index.json",
-                crop_bb={"x": 0, "y": 0, "z": 0, "w": 1, "h": 1, "d": 1},
-                color_map="dummy_color_map",
-                nx=1,
-                nz=1
-            )
-            
-            # Process PCD and images
-            # [Add implementation details from debug.py Case 10]
-            
-        except Exception as e:
-            logger.error(f"Error processing {leaf_URI}: {str(e)}")
-            logger.error(traceback.format_exc()) 
+                    try:
+                        pcd_input = o3d.t.io.read_point_cloud(file_path)
+                        seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(
+                            pcd_input, nx=nx, nz=nz, bb=crop_bb
+                        )
+                        output_rgb_path = os.path.join(dst_folder, f"seg-mask-rgb-{os.path.basename(root)}.png")
+                        cv2.imwrite(output_rgb_path, seg_mask_rgb)
+                    except Exception as e:
+                        logger.error(f"Error processing {file_path}: {e}")
+                    pbar.update(1)
