@@ -65,6 +65,8 @@ class DebugRunner:
 
 # Define debug cases in separate module
 from scripts.debug_cases import (
+    test_stereo_pcd_occ,
+    test_stereo_pcd,
     test_bev_generation,
     test_dairy_masks,
     test_occ_generation,
@@ -83,6 +85,8 @@ def main():
     
     # Register all test cases
     cases = [
+        ("case_12", "Stereo PCD Occlusion", "Test stereo point cloud occlusion map generation", test_stereo_pcd_occ),
+        ("case_11", "Stereo PCD", "Test stereo point cloud generation", test_stereo_pcd),
         ("case_10", "AWS Occlusion", "Test AWS version of occlusion generation", test_aws_occ_generation),
         ("case_9", "Dairy Masks", "Test dairy environment mask generation", test_dairy_masks),
         ("case_8", "Occlusion Generation", "Test occlusion map generation", test_occ_generation),
@@ -98,8 +102,8 @@ def main():
         runner.register_case(case_id, name, desc, func)
     
     # Run specific case or all cases
-    runner.run_case("case_9")  # Run specific case
-    # runner.run_all_enabled()  # Or run all enabled cases
+    runner.run_case("case_12")
+    # runner.run_all_enabled()
 
 if __name__ == "__main__":
     main()

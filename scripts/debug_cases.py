@@ -17,9 +17,238 @@ from scripts.logger import get_logger
 from scripts.bev_mask_generator_dairy import BEVGenerator
 from scripts.data_generator_s3 import DataGeneratorS3, LeafFolder
 from scripts.occ_mask_generator import OccMap
-from scripts.helpers import get_zed_camera_params, cam_extrinsics, read_images_binary
+# from scripts.helpers import get_zed_camera_params, cam_extrinsics, read_images_binary
+
 
 logger = get_logger("debug_cases")
+
+
+def test_stereo_pcd_occ():
+    """Case 12: Test stereo point cloud occlusion map generation"""
+    pcd_dir = Path("debug/frames-4")
+    output_dir = Path("debug/4")
+    output_dirs = {
+        "seg_masks": output_dir / "seg-masks",
+        "rectified_pcd": output_dir / "rectified-pcd",
+        "left_img": output_dir / "left-imgs",
+        "right_img": output_dir / "right-imgs",
+        "occ_pcd": output_dir / "occ-pcd",
+        "stereo_pcd": output_dir / "stereo-pcd",
+        "sfm_pcd": output_dir / "sfm-pcd",
+        "stereo_occ_pcd": output_dir / "stereo-occ-pcd",
+        "sfm_occ_pcd": output_dir / "sfm-occ-pcd",
+        "stereo_img": output_dir / "stereo-img",
+        "sfm_img": output_dir / "sfm-img"
+    }
+    
+    for dir_path in output_dirs.values():
+        dir_path.mkdir(parents=True, exist_ok=True)
+    
+    # find all pcd files
+    pcd_files = []
+    for root, _, files in os.walk(pcd_dir):
+        for file in files:
+            if file == "left-segmented-labelled.ply":
+                pcd_files.append(Path(root) / file)
+    
+    pcd_files.sort()
+    
+    # camera parameters
+    camera_matrix = np.array([[1090.536, 0, 954.99],
+                            [0, 1090.536, 523.12],
+                            [0, 0, 1]], dtype=np.float32)
+    
+    # process each pcd file
+    for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
+        try:
+
+            # if idx > 1:
+            #     break
+            
+            logger.warning("───────────────────────────────")
+            logger.warning(f"IDX: {idx}")
+            logger.warning("───────────────────────────────")
+            
+            # read and process images
+            img_dir = pcd_path.parent
+            left_src = img_dir / "left.jpg"
+            right_src = img_dir / "right.jpg"
+            
+            left_img = cv2.imread(str(left_src))
+            right_img = cv2.imread(str(right_src))
+            
+            # save processed images
+            left_dest = output_dirs["left_img"] / f"left-img-{idx}.jpg"
+            right_dest = output_dirs["right_img"] / f"right-img-{idx}.jpg"
+            
+            cv2.imwrite(str(left_dest), left_img)
+            cv2.imwrite(str(right_dest), right_img)
+            
+            # process sfm point cloud
+            sfm_pcd = o3d.t.io.read_point_cloud(str(pcd_path))
+            o3d.t.io.write_point_cloud(str(output_dirs["sfm_pcd"] / f"sfm-pcd-{idx}.ply"), sfm_pcd)
+            
+            
+            # generate and save stereo point cloud
+            stereo_pcd = OccMap.get_stereo_pcd(left_img, right_img,
+                                              K=camera_matrix,
+                                              baseline=0.12)
+            
+            o3d.t.io.write_point_cloud(str(output_dirs["stereo_pcd"] / f"stereo-pcd-{idx}.ply"), stereo_pcd)
+            
+            # save stereo / sfm pcd projections
+            stereo_img = OccMap.project_pcd_to_img(stereo_pcd,
+                                       K=camera_matrix,
+                                       img_shape = (1080, 1920),
+                                       visualize=False)
+            
+            sfm_img = OccMap.project_pcd_to_img(sfm_pcd,
+                                       K=camera_matrix,
+                                       img_shape = (1080, 1920),
+                                       visualize=False)
+            
+            cv2.imwrite(str(output_dirs["stereo_img"] / f"stereo-img-{idx}.jpg"), stereo_img)
+            cv2.imwrite(str(output_dirs["sfm_img"] / f"sfm-img-{idx}.jpg"), sfm_img)
+
+
+            # generate and save sfm_occ-pcd
+            # WITH CROP
+            sfm_occ_pcd = OccMap.get_sfm_occ_pcd(
+                sfm_pcd,
+                K = camera_matrix, 
+                to_crop=True,
+                bb={'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5},
+                img_shape=(1080, 1920))
+            
+            # NO CROP
+            # sfm_occ_pcd = OccMap.get_sfm_occ_pcd(
+            #     sfm_pcd,
+            #     K = camera_matrix, 
+            #     to_crop=False,
+            #     # bb={'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5},
+            #     img_shape=(1080, 1920))
+            
+            o3d.t.io.write_point_cloud(
+                str(output_dirs["sfm_occ_pcd"] / f"sfm-occ-pcd-{idx}.ply"),
+                sfm_occ_pcd)
+            
+            # generate occlusion map using both sfm and stereo point clouds
+            stereo_occ_pcd = OccMap.get_stereo_occ_pcd(
+                sfm_pcd=sfm_pcd,
+                stereo_pcd=stereo_pcd,
+                K=camera_matrix,
+                to_crop=True,
+                bb={'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5},
+                img_shape=(1080, 1920)
+            )
+            
+            o3d.t.io.write_point_cloud(
+                str(output_dirs["stereo_occ_pcd"] / f"stereo-occ-pcd-{idx}.ply"),
+                stereo_occ_pcd
+            )
+            
+            
+        except Exception as e:
+            logger.error(f"Error processing {pcd_path}: {str(e)}")
+            logger.error(traceback.format_exc())
+
+def test_stereo_pcd():
+    """Case 11: Test stereo point cloud generation"""
+    pcd_dir = Path("debug/frames-4")
+    output_dir = Path("debug/4")
+    
+    output_dirs = {
+        "seg_masks": output_dir / "seg-masks",
+        "rectified_pcd": output_dir / "rectified-pcd",
+        "left_img": output_dir / "left-imgs",
+        "right_img": output_dir / "right-imgs",
+        "stereo_pcd": output_dir / "stereo-pcd",
+        "combined_pcd": output_dir / "combined-pcd",
+        "sfm_pcd": output_dir / "sfm-pcd"
+    }
+    
+    for dir_path in output_dirs.values():
+        dir_path.mkdir(parents=True, exist_ok=True)
+    
+    # Find all PCD files
+    pcd_files = []
+    for root, _, files in os.walk(pcd_dir):
+        for file in files:
+            if file == "left-segmented-labelled.ply":
+                pcd_files.append(Path(root) / file)
+    
+    pcd_files.sort()
+    
+    
+    # Process each PCD file
+    for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
+        try:
+
+            if idx > 1:
+                break
+            
+            # Read and process images
+            img_dir = pcd_path.parent
+            left_src = img_dir / "left.jpg"
+            right_src = img_dir / "right.jpg"
+            
+            left_img = cv2.imread(str(left_src))
+            right_img = cv2.imread(str(right_src))
+
+            # h, w, _ = left_img.shape
+            # left_img_cropped = left_img[h//2:, :w//2]
+            # right_img_cropped = right_img[h//2:, :w//2]
+
+            # cv2.imshow("left", left_img_cropped)
+            # cv2.imshow("right", right_img_cropped)
+            # key = cv2.waitKey(0)
+            # cv2.destroyAllWindows()
+            # if key == ord('q'):
+            #     logger.info("Exiting debug case...")
+            #     break
+
+            # left_img = cv2.resize(left_img, (480, 640))
+            # right_img = cv2.resize(right_img, (480, 640))
+            
+            # logger.info(f"Processing images - left: {left_img.shape}, right: {right_img.shape}")
+            
+            # is_rectified, avg_vertical_disparity = OccMap.is_rectified(left_img, right_img)
+            
+            # Save processed images
+            left_dest = output_dirs["left_img"] / f"left-img-{idx}.jpg"
+            right_dest = output_dirs["right_img"] / f"right-img-{idx}.jpg"
+            
+            cv2.imwrite(str(left_dest), left_img)
+            cv2.imwrite(str(right_dest), right_img)
+            
+            # sfm pointcloud
+            sfm_pcd_path = pcd_path
+            sfm_pcd = o3d.t.io.read_point_cloud(str(sfm_pcd_path))
+            o3d.t.io.write_point_cloud(str(output_dirs["sfm_pcd"] / f"sfm-pcd-{idx}.ply"), sfm_pcd)
+
+            # stereo-pcd calculations
+            camera_matrix = np.array([[1090.536, 0, 954.99],
+                                   [0, 1090.536, 523.12],
+                                   [0, 0, 1]], dtype=np.float32)
+            
+            
+            stereo_pcd = OccMap.get_stereo_pcd(left_img, right_img, 
+                                               K = camera_matrix, 
+                                               baseline = 0.12)
+
+            o3d.t.io.write_point_cloud(str(output_dirs["stereo_pcd"] / f"stereo-pcd-{idx}.ply"), stereo_pcd)
+
+            # combine pcds
+            sfm_pcd = OccMap.color_pcd(sfm_pcd, color=[255, 0, 255])
+            # combined_pcd = OccMap.combine_pcds(sfm_pcd, stereo_pcd, use_distinct_colors=False)
+            combined_pcd = OccMap.combine_pcds(stereo_pcd, sfm_pcd, use_distinct_colors=False)
+            
+            o3d.t.io.write_point_cloud(str(output_dirs["combined_pcd"] / f"combined-pcd-{idx}.ply"), combined_pcd)
+
+
+        except Exception as e:
+            logger.error(f"Error processing {pcd_path}: {str(e)}")
+            logger.error(traceback.format_exc())
 
 def project_pcd_to_camera(pcd_input, camera_matrix, image_size, rvec=None, tvec=None):
     """Project pointcloud to camera view"""
@@ -128,7 +357,7 @@ def test_dairy_masks():
         "segmented_pcd": pcd_dir / "segmented-pcd",
         "labelled_pcd": pcd_dir / "labelled-pcd"
     }
-    
+        
     # Create output directories
     for dir_path in output_dirs.values():
         dir_path.mkdir(parents=True, exist_ok=True)
@@ -243,7 +472,7 @@ def test_occ_generation():
                                    [0, 1090.536, 523.12],
                                    [0, 0, 1]], dtype=np.float32)
             
-            camera_projection_matrix = bev_generator.get_updated_camera_extrinsics(pcd_input)
+            # camera_projection_matrix = bev_generator.get_updated_camera_extrinsics(pcd_input)
             pcd_downsampled = bev_generator.get_downsampled_pcd()
             
             occ_pcd = OccMap.get_occ_mask(
