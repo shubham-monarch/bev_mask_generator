@@ -194,93 +194,6 @@ class BEVGenerator:
         # rectified PCD
         self.pcd_RECTIFIED = None
 
-    def relabel_pointcloud(self, segmented_pointcloud: o3d.t.geometry.PointCloud, color_threshold: int = 5) -> o3d.t.geometry.PointCloud:
-        """
-        Relabel a pointcloud based on its colors using the mapping defined in dairy.yaml.
-        Includes color approximation within a threshold to handle small color variations.
-        
-        Args:
-            segmented_pointcloud (o3d.t.geometry.PointCloud): Input pointcloud with colors
-            color_threshold (int): Maximum allowed difference per color channel (default: 5)
-            
-        Returns:
-            o3d.t.geometry.PointCloud: Pointcloud with updated labels based on colors
-        """
-        self.logger.info(f"=================================")
-        self.logger.info(f"Relabeling pointcloud...")
-        self.logger.info(f"=================================\n")
-        
-        # verify pointcloud has colors
-        if 'colors' not in segmented_pointcloud.point:
-            raise ValueError("Input pointcloud must have colors attribute")
-        
-        # create a copy to avoid modifying the input
-        relabeled_pcd = segmented_pointcloud.clone()
-        
-        # get colors from pointcloud as numpy array
-        colors = segmented_pointcloud.point['colors'].numpy()[:, ::-1]  # convert RGB to BGR
-        
-        # read color mapping from yaml
-        with open(self.yaml_path, 'r') as file:
-            config = yaml.safe_load(file)
-            color_map = config['color_map']
-        
-        # create list of reference colors for approximate matching
-        reference_colors = np.array([bgr for bgr in color_map.values()], dtype=np.uint8)
-        label_ids = np.array(list(color_map.keys()), dtype=np.uint8)
-        
-        # initialize labels array
-        num_points = len(colors)
-        new_labels = np.zeros(num_points, dtype=np.uint8)
-        
-        # statistics tracking
-        unmapped_count = 0
-        exact_matches = 0
-        approximate_matches = 0
-        
-        # process each point's color
-        for i, color in enumerate(colors):
-            # try exact match first
-            exact_match = np.all(reference_colors == color, axis=1)
-            if np.any(exact_match):
-                new_labels[i] = label_ids[exact_match][0]
-                exact_matches += 1
-                continue
-            
-            # if no exact match, try approximate match
-            color_differences = np.abs(reference_colors - color)
-            within_threshold = np.all(color_differences <= color_threshold, axis=1)
-            
-            if np.any(within_threshold):
-                # if multiple matches within threshold, select the closest one
-                matches_within_threshold = color_differences[within_threshold]
-                best_match_idx = np.argmin(np.sum(matches_within_threshold, axis=1))
-                matched_label_indices = np.where(within_threshold)[0]
-                new_labels[i] = label_ids[matched_label_indices[best_match_idx]]
-                approximate_matches += 1
-            else:
-                unmapped_count += 1
-                new_labels[i] = 0  # assign to void class if no match found
-        
-        # log detailed statistics about relabeling
-        total_points = len(new_labels)
-        mapped_points = total_points - unmapped_count
-        mapped_percentage = (mapped_points / total_points) * 100 if total_points > 0 else 0
-        
-        self.logger.info(f"=================================")
-        self.logger.info(f"Pointcloud relabeling statistics:")
-        self.logger.info(f"Total points: {total_points}")
-        self.logger.info(f"Exact matches: {exact_matches} ({(exact_matches/total_points)*100:.2f}%)")
-        self.logger.info(f"Approximate matches: {approximate_matches} ({(approximate_matches/total_points)*100:.2f}%)")
-        self.logger.info(f"Total mapped: {mapped_points} ({mapped_percentage:.2f}%)")
-        self.logger.info(f"Unmapped (void): {unmapped_count} ({(unmapped_count/total_points)*100:.2f}%)")
-        self.logger.info(f"Color threshold: {color_threshold}")
-        self.logger.info(f"=================================\n")
-        
-        # update labels in pointcloud
-        relabeled_pcd.point['label'] = o3c.Tensor(new_labels.reshape(-1, 1), dtype=o3c.Dtype.UInt8)
-        
-        return relabeled_pcd
 
     def count_unique_labels(self, pcd: o3d.t.geometry.PointCloud) -> Tuple[int, np.ndarray, Dict[int, int]]:
         """
@@ -539,69 +452,79 @@ class BEVGenerator:
         }
 
         self.logger.info(f"=================================")    
+        self.logger.info(f"point cloud distribution:")
+        self.logger.info(f"---------------------------------")
+        
         for label, pcd in point_clouds.items():
             num_points = len(pcd.point['positions'])
             percentage = (num_points / total_points) * 100 if total_points > 0 else 0
-            self.logger.info(f"{label} | {num_points} points | {percentage:.2f}%")
+            self.logger.info(f"{label:<20} | {num_points:>8,} points | {percentage:>6.2f}%")
+        
+        self.logger.info(f"---------------------------------")
+        self.logger.info(f"total points: {total_points:,}")
         self.logger.info(f"=================================\n")
-            
-
-        return o3d.t.geometry.PointCloud()
 
         # downsampling label-wise pointcloud
-        down_CANOPY: o3d.t.geometry.PointCloud = pcd_CANOPY.voxel_down_sample(voxel_size=0.01)
         down_NAVIGABLE: o3d.t.geometry.PointCloud = pcd_NAVIGABLE.voxel_down_sample(voxel_size=0.01)
 
-        # calculation of percentage reduction
-        pts_CANOPY: int = len(pcd_CANOPY.point['positions'])
-        pts_CANOPY_DOWN: int = len(down_CANOPY.point['positions'])
+        # # calculation of percentage reduction
+        # pts_CANOPY: int = len(pcd_CANOPY.point['positions'])
+        # pts_CANOPY_DOWN: int = len(down_CANOPY.point['positions'])
 
-        pts_NAVIGABLE: int = len(pcd_NAVIGABLE.point['positions'])
-        pts_NAVIGABLE_DOWN: int = len(down_NAVIGABLE.point['positions'])
+        # pts_NAVIGABLE: int = len(pcd_NAVIGABLE.point['positions'])
+        # pts_NAVIGABLE_DOWN: int = len(down_NAVIGABLE.point['positions'])
         
-        percent_reduction_CANOPY: float = (pts_CANOPY - pts_CANOPY_DOWN) / pts_CANOPY
-        percent_reduction_NAVIGABLE: float = (pts_NAVIGABLE - pts_NAVIGABLE_DOWN) / pts_NAVIGABLE
+        # percent_reduction_CANOPY: float = (pts_CANOPY - pts_CANOPY_DOWN) / pts_CANOPY
+        # percent_reduction_NAVIGABLE: float = (pts_NAVIGABLE - pts_NAVIGABLE_DOWN) / pts_NAVIGABLE
 
-        self.logger.info(f"=================================")      
-        self.logger.info(f"% REDUCTION CANOPY: {percent_reduction_CANOPY:.2f}")
-        self.logger.info(f"% REDUCTION NAVIGABLE: {percent_reduction_NAVIGABLE:.2f}")
-        self.logger.info(f"=================================\n")
+        # self.logger.info(f"=================================")      
+        # self.logger.info(f"% REDUCTION CANOPY: {percent_reduction_CANOPY:.2f}")
+        # self.logger.info(f"% REDUCTION NAVIGABLE: {percent_reduction_NAVIGABLE:.2f}")
+        # self.logger.info(f"=================================\n")
 
         # NOT DOWN-SAMPLING [obstacle, stem, pole]
-        down_OBSTACLE: o3d.t.geometry.PointCloud = pcd_OBSTACLE.clone()
-        down_STEM: o3d.t.geometry.PointCloud = pcd_STEM.clone()
-        down_POLE: o3d.t.geometry.PointCloud = pcd_POLE.clone()
+        # down_OBSTACLE: o3d.t.geometry.PointCloud = pcd_OBSTACLE.clone()
+        # down_STEM: o3d.t.geometry.PointCloud = pcd_STEM.clone()
+        # down_POLE: o3d.t.geometry.PointCloud = pcd_POLE.clone()
         
-        # radius-based outlier removal
-        rad_filt_POLE: o3d.t.geometry.PointCloud = (
-            down_POLE if len(down_POLE.point['positions']) == 0 
-            else self.filter_radius_outliers(down_POLE, nb_points=16, search_radius=0.05)[0]
-        )
-        rad_filt_STEM: o3d.t.geometry.PointCloud = (
-            down_STEM if len(down_STEM.point['positions']) == 0 
-            else self.filter_radius_outliers(down_STEM, nb_points=16, search_radius=0.05)[0]
-        )
-        rad_filt_OBSTACLE: o3d.t.geometry.PointCloud = (
-            down_OBSTACLE if len(down_OBSTACLE.point['positions']) == 0 
-            else self.filter_radius_outliers(down_OBSTACLE, nb_points=10, search_radius=0.05)[0]
-        )
+        # # radius-based outlier removal
+        # rad_filt_POLE: o3d.t.geometry.PointCloud = (
+        #     down_POLE if len(down_POLE.point['positions']) == 0 
+        #     else self.filter_radius_outliers(down_POLE, nb_points=16, search_radius=0.05)[0]
+        # )
+        # rad_filt_STEM: o3d.t.geometry.PointCloud = (
+        #     down_STEM if len(down_STEM.point['positions']) == 0 
+        #     else self.filter_radius_outliers(down_STEM, nb_points=16, search_radius=0.05)[0]
+        # )
+        # rad_filt_OBSTACLE: o3d.t.geometry.PointCloud = (
+        #     down_OBSTACLE if len(down_OBSTACLE.point['positions']) == 0 
+        #     else self.filter_radius_outliers(down_OBSTACLE, nb_points=10, search_radius=0.05)[0]
+        # )
         
 
         # merging label-wise pointclouds
-        self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([down_NAVIGABLE, down_CANOPY, rad_filt_STEM, rad_filt_POLE, rad_filt_OBSTACLE])
-        
+        self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([down_NAVIGABLE, 
+                                                                      pcd_OBSTACLE,
+                                                                      pcd_COWS,
+                                                                      pcd_FENCE,
+                                                                      pcd_CATTLE_GUARD,
+                                                                      pcd_POLES,
+                                                                      pcd_GATES,
+                                                                      pcd_FEED,
+                                                                      pcd_FEED_PUSHER,
+                                                                      pcd_VEGETATION])
         # converting to BEV
         pcd_BEV_2D: o3d.t.geometry.PointCloud = self.pcd_BEV_3D.clone()
         pcd_BEV_2D.point['positions'][:, 1] = 0.0  # Set all y-coordinates to 0
         
-        self.logger.info("=================================")    
-        self.logger.info("BEFORE / AFTER DOWNSAMPLING")
-        self.logger.info(f"NAVIGABLE: {len(pcd_NAVIGABLE.point['positions']):<10} | {len(down_NAVIGABLE.point['positions']):<10}")
-        self.logger.info(f"CANOPY:    {len(pcd_CANOPY.point['positions']):<10} | {len(down_CANOPY.point['positions']):<10}")
-        self.logger.info(f"VINE-POLE: {len(pcd_POLE.point['positions']):<10} | {len(down_POLE.point['positions']):<10}")
-        self.logger.info(f"VINE-STEM: {len(pcd_STEM.point['positions']):<10} | {len(down_STEM.point['positions']):<10}")
-        self.logger.info(f"OBSTACLE:  {len(pcd_OBSTACLE.point['positions']):<10} | {len(down_OBSTACLE.point['positions']):<10}")
-        self.logger.info("=================================\n")
+        # self.logger.info("=================================")    
+        # self.logger.info("BEFORE / AFTER DOWNSAMPLING")
+        # self.logger.info(f"NAVIGABLE: {len(pcd_NAVIGABLE.point['positions']):<10} | {len(down_NAVIGABLE.point['positions']):<10}")
+        # self.logger.info(f"CANOPY:    {len(pcd_CANOPY.point['positions']):<10} | {len(down_CANOPY.point['positions']):<10}")
+        # self.logger.info(f"VINE-POLE: {len(pcd_POLE.point['positions']):<10} | {len(down_POLE.point['positions']):<10}")
+        # self.logger.info(f"VINE-STEM: {len(pcd_STEM.point['positions']):<10} | {len(down_STEM.point['positions']):<10}")
+        # self.logger.info(f"OBSTACLE:  {len(pcd_OBSTACLE.point['positions']):<10} | {len(down_OBSTACLE.point['positions']):<10}")
+        # self.logger.info("=================================\n")
 
         return pcd_BEV_2D
     
