@@ -67,55 +67,6 @@ class OccMap:
         assert x.shape == (X.shape[0], 2), "pixel coordinates must be a 2D array"
         return x
     
-    # @staticmethod
-    # def generate_depth_buffer(pcd: o3d.t.geometry.PointCloud,
-    #                           img_coords: np.ndarray,
-    #                           img_shape: Tuple[int, int] = (1080, 1920)) -> np.ndarray:
-    #     """Generate depth buffer from projected point cloud coordinates.
-        
-    #     Args:
-    #         pcd: Input point cloud
-    #         img_coords: Nx2 array of projected 2D coordinates
-    #         img_shape: Tuple of (height, width) for output buffer
-            
-    #     Returns:
-    #         np.ndarray: HxW depth buffer containing minimum depth at each pixel
-    #     """
-       
-    #     assert pcd.point['positions'].numpy().shape[0] == img_coords.shape[0], \
-    #         "pcd and img_coords must have the same number of points"
-    #     assert img_coords.shape[1] == 2, \
-    #         "img_coords must be a 2D array with shape [N, 2]"
-
-    #     h, w = img_shape
-        
-    #     u, v = img_coords[:, 0], img_coords[:, 1]
-    #     depths: np.ndarray = pcd.point['positions'].numpy()[:, 2]
-
-    #     assert v.shape == u.shape == depths.shape, \
-    #         "v, u, and depths must have the same shape"
-
-    #     # Create a mask for valid projected points within the bounds
-    #     valid_mask: np.ndarray = ((0 <= v) & (v < h) & (0 <= u) & (u < w))
-
-    #     # log results
-    #     OccMap.logger.info(f"===========================")
-    #     OccMap.logger.info(f"Depth buffer generation:")
-    #     OccMap.logger.info(f"- projected points: {len(img_coords)}")
-    #     OccMap.logger.info(f"- valid projected points: {valid_mask.sum()}")
-    #     OccMap.logger.info(f"- valid projected ratio: {valid_mask.sum() / len(img_coords):.2f}")
-    #     OccMap.logger.info(f"===========================\n")
-
-    #     valid_v: np.ndarray = v[valid_mask]
-    #     valid_u: np.ndarray = u[valid_mask]
-    #     valid_depths: np.ndarray = depths[valid_mask]
-
-    #     depth_buffer: np.ndarray = np.full((h, w), np.inf)
-        
-    #     for u, v, d in zip(valid_u, valid_v, valid_depths):
-    #         depth_buffer[v, u] = min(depth_buffer[v, u], d)
-        
-    #     return depth_buffer
 
     @staticmethod
     def generate_depth_buffer(sfm_pcd: o3d.t.geometry.PointCloud = None,
@@ -178,8 +129,40 @@ class OccMap:
                 depth_buffer[v, u] = min(depth_buffer[v, u], d)
         
         return depth_buffer
+    
+    @staticmethod
+    def project_pcd_to_img(pcd: o3d.t.geometry.PointCloud,
+                           K: np.ndarray,
+                           P: np.ndarray = None,
+                           img_shape: Tuple[int, int] = (1080, 1920),
+                           visualize: bool = True) -> np.ndarray:
+        """Project point cloud to image plane and visualize.
 
+        Args:
+            pcd: Input point cloud
+            K: 3x3 camera intrinsic matrix
+            P: 3x4 camera extrinsic matrix [R|t]
+            img_shape: Tuple of (height, width) for output image
+            
+        Returns:
+            np.ndarray: Visualization image showing projected points
+        """
 
+        assert pcd is not None, "pcd is required"
+        assert K is not None, "K is required"
+        assert img_shape == (1080, 1920), "img_shape must be (1080, 1920)"
+
+        img_coords: np.ndarray = OccMap.get_pixel_coordinates(pcd, K, P)
+
+        # visualize projected points
+        img: np.ndarray = OccMap.visualize_projected_points(pcd, 
+                                                            img_coords, 
+                                                            img_shape, 
+                                                            output_shape = (1080, 1920),
+                                                            visualize=visualize)
+
+        return img
+        
     @staticmethod
     def visualize_projected_points(pcd: o3d.t.geometry.PointCloud,
                                  img_coords: np.ndarray,
@@ -187,7 +170,8 @@ class OccMap:
                                  output_shape: Tuple[int, int] = (640, 720),
                                  window_name: str = "Projected Points",
                                  point_size: int = 3,
-                                 ) -> None:
+                                 visualize: bool = True
+                                 ) -> np.ndarray:
         """Visualize projected points from point cloud onto a 2D image plane.
 
         Args:
@@ -197,7 +181,9 @@ class OccMap:
             output_shape: Tuple of (height, width) for output image
             window_name: Name of the visualization window
             point_size: Radius of visualized points
-            wait_key: Whether to wait for key press before closing window
+            visualize: Whether to visualize the image
+        Returns:
+            np.ndarray: Visualization image showing projected points
         """
         try:
             colors: np.ndarray = pcd.point['colors'].numpy()
@@ -218,16 +204,17 @@ class OccMap:
                 color_bgr: Tuple[int, int, int] = (int(color[2]), int(color[1]), int(color[0]))
                 cv2.circle(img, (x, y), point_size, color_bgr, -1)
 
-            # resize image to output shape
-            # img = cv2.resize(img, output_shape)
-            cv2.imshow(window_name, img)
-            
-            # wait for 'q' key to be pressed
-            while True:
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    cv2.destroyAllWindows()
-                    break
+            if visualize:
+                # resize image to output shape
+                # img = cv2.resize(img, output_shape)
+                cv2.imshow(window_name, img)
+                
+                # wait for 'q' key to be pressed
+                while True:
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        cv2.destroyAllWindows()
+                        break
             
             # log results
             OccMap.logger.info(f"===========================")
@@ -241,6 +228,8 @@ class OccMap:
             OccMap.logger.error(f"===========================")
             OccMap.logger.error(f"Error visualizing projected points: {str(e)}")
             OccMap.logger.error(f"===========================\n")
+
+        return img
             
     @staticmethod
     def add_mask_color_to_pcd(pcd: o3d.t.geometry.PointCloud,
@@ -588,23 +577,7 @@ class OccMap:
         assert left_img.shape == (1080,1920,3), f"Left image shape must be (1080,1920,3) but is {left_img.shape}"
         assert right_img.shape == (1080,1920,3), f"Right image shape must be (1080,1920,3) but is {right_img.shape}"
 
-        # # resize input images to match final dimensions
-        # resized_L: np.ndarray = cv2.resize(left_img, (final_w, final_h))
-        # resized_R: np.ndarray = cv2.resize(right_img, (final_w, final_h))
-        
-        # # adjust camera intrinsics for resized images
-        # scale_x: float = final_w / left_img.shape[1]
-        # scale_y: float = final_h / left_img.shape[0]
-
-        # # scale camera intrinsics
-        # K_scaled: np.ndarray = K.copy()
-        # K_scaled[0, 0] *= scale_x
-        # K_scaled[1, 1] *= scale_y
-        # K_scaled[0, 2] *= scale_x
-        # K_scaled[1, 2] *= scale_y
-
         # get disparity map
-        # disparity: np.ndarray = OccMap.get_stereo_disparity(resized_L, resized_R)
         disparity: np.ndarray = OccMap.get_stereo_disparity(left_img, right_img)
 
         assert disparity.shape == left_img.shape[:2], "Disparity map shape does not match left image"
@@ -619,8 +592,6 @@ class OccMap:
 
         # get image dimensions
         h, w = disparity.shape
-        
-        # assert (h, w) == (640, 480), "Disparity map shape does not match final dimensions"
         
         # create mesh grid for pixel coordinates
         v, u = np.mgrid[0:h, 0:w]
