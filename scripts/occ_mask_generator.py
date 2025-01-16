@@ -605,6 +605,7 @@ class OccMap:
     def get_stereo_pcd(left_img: np.ndarray, right_img: np.ndarray, 
                        K: np.ndarray,
                        baseline: float,
+                       fill_nan_value = None
                        ) -> o3d.t.geometry.PointCloud:
         """Generate point cloud from stereo image pair.
         
@@ -613,8 +614,7 @@ class OccMap:
             right_img: Right stereo image --> (1080, 1920)
             K: Camera intrinsic matrix --> (3, 3)
             baseline: Baseline distance between stereo cameras in meters --> 0.12
-            final_h: Height of the final image --> 640
-            final_w: Width of the final image --> 480
+            fill_nan_value: Value to fill NaN disparities with (default: None, which defaults to 0)
             
         Returns:
             o3d.t.geometry.PointCloud: Point cloud with colors
@@ -622,6 +622,7 @@ class OccMap:
 
         assert left_img.shape == (1080,1920,3), f"Left image shape must be (1080,1920,3) but is {left_img.shape}"
         assert right_img.shape == (1080,1920,3), f"Right image shape must be (1080,1920,3) but is {right_img.shape}"
+        assert isinstance(fill_nan_value, int), f"fill_nan_value must be an integer"
 
         # get disparity map
         disparity: np.ndarray = OccMap.get_stereo_disparity(left_img, right_img)
@@ -633,10 +634,8 @@ class OccMap:
         OccMap.logger.info(f"[get_stereo_pcd] Count of NaN values in disparity: {nan_count}")
         OccMap.logger.info(f"===========================\n")
 
-        # replace nan values with 0 for depth calculation
-        # disparity = np.nan_to_num(disparity, nan=0.0)
-        # disparity = np.nan_to_num(disparity, nan=120.0)
-        disparity = np.nan_to_num(disparity, nan=150.0)
+        # replace nan values with fill_nan_value for depth calculation
+        disparity = np.nan_to_num(disparity, nan=fill_nan_value)
         
         # get image dimensions
         h, w = disparity.shape
@@ -767,10 +766,10 @@ class OccMap:
         # assign colors to point cloud
         colored_pcd.point['colors'] = o3c.Tensor(colors, dtype=o3c.Dtype.UInt8)
         
-        OccMap.logger.info(f"===========================")
-        OccMap.logger.info(f"Colored point cloud with {len(colors)} points")
-        OccMap.logger.info(f"Using color: RGB{tuple(rgb_color)}")
-        OccMap.logger.info(f"===========================\n")
+        # OccMap.logger.info(f"===========================")
+        # OccMap.logger.info(f"Colored point cloud with {len(colors)} points")
+        # OccMap.logger.info(f"Using color: RGB{tuple(rgb_color)}")
+        # OccMap.logger.info(f"===========================\n")
         
         return colored_pcd
 
@@ -822,20 +821,79 @@ class OccMap:
                     sfm_hidden_mask[i] = True
             else:
                 sfm_bound_mask[i] = True
+
+        # get indices of points that don't belong to either mask
+        non_masked = ~(sfm_hidden_mask | sfm_bound_mask)
+        
+        # split point cloud into masked and non-masked parts
+        positions = sfm_pcd_cropped.point['positions'].numpy()
+        colors = sfm_pcd_cropped.point['colors'].numpy()
+        
+        # create separate point clouds for masked and non-masked points
+        masked_pcd = o3d.t.geometry.PointCloud()
+        masked_pcd.point['positions'] = o3c.Tensor(positions[sfm_hidden_mask | sfm_bound_mask])
+        masked_pcd.point['colors'] = o3c.Tensor(colors[sfm_hidden_mask | sfm_bound_mask])
+        
+        non_masked_pcd = o3d.t.geometry.PointCloud()
+        non_masked_pcd.point['positions'] = o3c.Tensor(positions[non_masked])
+        non_masked_pcd.point['colors'] = o3c.Tensor(colors[non_masked])
+        
+        VOXEL_SIZE = 0.01
+        RADIUS = 0.01
+
+        # downsample non-masked points
+        downsampled_pcd = non_masked_pcd.voxel_down_sample(VOXEL_SIZE)
+        
+        # remove points near hidden points
+        hidden_points = positions[sfm_hidden_mask]
+        if len(hidden_points) > 0:
+            # convert to legacy point cloud for nearest neighbor operations
+            hidden_legacy = o3d.geometry.PointCloud()
+            hidden_legacy.points = o3d.utility.Vector3dVector(hidden_points)
+            
+            downsampled_legacy = o3d.geometry.PointCloud()
+            downsampled_legacy.points = o3d.utility.Vector3dVector(
+                downsampled_pcd.point['positions'].numpy())
+            
+            # find points that are far enough from hidden points
+            distances = np.asarray(downsampled_legacy.compute_point_cloud_distance(hidden_legacy))
+            far_mask = distances >= RADIUS
+            
+            # filter points
+            downsampled_filtered = o3d.t.geometry.PointCloud()
+            downsampled_filtered.point['positions'] = o3c.Tensor(
+                downsampled_pcd.point['positions'].numpy()[far_mask])
+            downsampled_filtered.point['colors'] = o3c.Tensor(
+                downsampled_pcd.point['colors'].numpy()[far_mask])
+        else:
+            downsampled_filtered = downsampled_pcd
+        
+        # combine masked and processed non-masked points
+        final_pcd = OccMap.combine_pcds(masked_pcd, downsampled_filtered)
         
         # color points using the new method
         hidden_color = np.array([241, 196, 15])     # sun yellow
         bound_color = np.array([142, 68, 173])   # wisteria purple
         
+        # recreate masks for the combined point cloud
+        total_points = len(final_pcd.point['positions'])
+        masked_points = len(masked_pcd.point['positions'])
+        new_hidden_mask = np.zeros(total_points, dtype=bool)
+        new_bound_mask = np.zeros(total_points, dtype=bool)
+        
+        # set masks for the original masked points
+        new_hidden_mask[:len(positions[sfm_hidden_mask])] = True
+        new_bound_mask[len(positions[sfm_hidden_mask]):masked_points] = True
+        
         OccMap.logger.info(f"===========================")
         OccMap.logger.info(f"STEREO OCC-MASK GENERATION:")
-        OccMap.logger.info(f"- total points: {len(sfm_depths)}")
-        OccMap.logger.info(f"- hidden points: {sfm_hidden_mask.sum()}")
-        OccMap.logger.info(f"- bound points: {sfm_bound_mask.sum()}")
-        OccMap.logger.info(f"- % hidden: {100 * sfm_hidden_mask.sum() / len(sfm_depths):.2f}%")
-        OccMap.logger.info(f"- % bound: {100 * sfm_bound_mask.sum() / len(sfm_depths):.2f}%")
-        OccMap.logger.info(f"- % occ: {100 * (sfm_hidden_mask.sum() + sfm_bound_mask.sum()) / len(sfm_depths):.2f}%")
+        OccMap.logger.info(f"- original points: {len(positions)}")
+        OccMap.logger.info(f"- points after processing: {total_points}")
+        OccMap.logger.info(f"- hidden points: {new_hidden_mask.sum()}")
+        OccMap.logger.info(f"- bound points: {new_bound_mask.sum()}")
+        OccMap.logger.info(f"- downsampled points: {total_points - masked_points}")
         OccMap.logger.info(f"===========================\n")
 
-        OccMap.add_mask_color_to_pcd(sfm_pcd_cropped, [sfm_hidden_mask, sfm_bound_mask], [hidden_color, bound_color])
-        return sfm_pcd_cropped
+        OccMap.add_mask_color_to_pcd(final_pcd, [new_hidden_mask, new_bound_mask], 
+                                    [hidden_color, bound_color])
+        return final_pcd
