@@ -622,7 +622,7 @@ class OccMap:
 
         assert left_img.shape == (1080,1920,3), f"Left image shape must be (1080,1920,3) but is {left_img.shape}"
         assert right_img.shape == (1080,1920,3), f"Right image shape must be (1080,1920,3) but is {right_img.shape}"
-        assert isinstance(fill_nan_value, int), f"fill_nan_value must be an integer"
+        assert fill_nan_value is not None and isinstance(fill_nan_value, int), f"fill_nan_value must be an integer"
 
         # get disparity map
         disparity: np.ndarray = OccMap.get_stereo_disparity(left_img, right_img)
@@ -679,40 +679,22 @@ class OccMap:
         return pcd
 
     @staticmethod
-    def combine_pcds(pcds: List[o3d.t.geometry.PointCloud],
-                     use_distinct_colors: bool = False,
-                     colors: List[np.ndarray] = None
-                     ) -> o3d.t.geometry.PointCloud:
-        """Combine multiple point clouds with option to preserve original colors or use distinct colors.
+    def combine_pcds(pcds: List[o3d.t.geometry.PointCloud]) -> o3d.t.geometry.PointCloud:
+        """Combine multiple point clouds, preserving original colors.
         
         Args:
-            pcds: List of point clouds to combine
-            use_distinct_colors: If True, colors points with distinct colors for visualization
-                               If False, preserves original colors (default: False)
-            colors: List of RGB colors for each point cloud if use_distinct_colors is True.
-                    If None, default colors are used (yellow, magenta, cyan, etc.)
+            pcds: List of point clouds to combine.
             
         Returns:
-            o3d.t.geometry.PointCloud: Combined point cloud with specified coloring
+            o3d.t.geometry.PointCloud: Combined point cloud with original colors.
         """
         assert isinstance(pcds, list), f"pcds must be a list, but got {type(pcds)}"
         assert len(pcds) > 0, f"pcds must have at least one point cloud, but got {len(pcds)}"
-        assert len(colors) == len(pcds) if use_distinct_colors else True, \
-            f"Number of colors ({len(colors)}) must match number of point clouds ({len(pcds)})"
-        
-        num_pcds = len(pcds)
         
         position_tensors: List[np.ndarray] = [pcd.point['positions'].numpy() for pcd in pcds]
         stacked_positions: o3c.Tensor = o3c.Tensor(np.vstack(position_tensors), dtype=o3c.Dtype.Float32)
         
-        if use_distinct_colors:
-            color_tensors: List[np.ndarray] = [
-                np.tile(color, (pcd.point['positions'].shape[0], 1))
-                for pcd, color in zip(pcds, colors)
-            ]
-        else:
-            color_tensors: List[np.ndarray] = [pcd.point['colors'].numpy() for pcd in pcds]
-            
+        color_tensors: List[np.ndarray] = [pcd.point['colors'].numpy() for pcd in pcds]
         stacked_colors: o3c.Tensor = o3c.Tensor(np.vstack(color_tensors), dtype=o3c.Dtype.UInt8)
 
         # create a unified point cloud
