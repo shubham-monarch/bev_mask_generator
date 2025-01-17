@@ -630,9 +630,9 @@ class OccMap:
         assert disparity.shape == left_img.shape[:2], "Disparity map shape does not match left image"
         
         nan_count: int = np.isnan(disparity).sum()
-        OccMap.logger.info(f"===========================")
-        OccMap.logger.info(f"[get_stereo_pcd] Count of NaN values in disparity: {nan_count}")
-        OccMap.logger.info(f"===========================\n")
+        # OccMap.logger.info(f"===========================")
+        # OccMap.logger.info(f"[get_stereo_pcd] Count of NaN values in disparity: {nan_count}")
+        # OccMap.logger.info(f"===========================\n")
 
         # replace nan values with fill_nan_value for depth calculation
         disparity = np.nan_to_num(disparity, nan=fill_nan_value)
@@ -679,45 +679,41 @@ class OccMap:
         return pcd
 
     @staticmethod
-    def combine_pcds(pcd_1: o3d.t.geometry.PointCloud, 
-                     pcd_2: o3d.t.geometry.PointCloud,
+    def combine_pcds(pcds: List[o3d.t.geometry.PointCloud],
                      use_distinct_colors: bool = False,
-                     color_1: np.ndarray = np.array([255, 255, 0]),  # yellow
-                     color_2: np.ndarray = np.array([255, 0, 255])   # magenta
+                     colors: List[np.ndarray] = None
                      ) -> o3d.t.geometry.PointCloud:
-        """Combine two point clouds with option to preserve original colors or use distinct colors.
+        """Combine multiple point clouds with option to preserve original colors or use distinct colors.
         
         Args:
-            pcd_1: First point cloud
-            pcd_2: Second point cloud
+            pcds: List of point clouds to combine
             use_distinct_colors: If True, colors points with distinct colors for visualization
                                If False, preserves original colors (default: False)
-            color_1: RGB color for first point cloud if use_distinct_colors is True (default: yellow)
-            color_2: RGB color for second point cloud if use_distinct_colors is True (default: magenta)
+            colors: List of RGB colors for each point cloud if use_distinct_colors is True.
+                    If None, default colors are used (yellow, magenta, cyan, etc.)
             
         Returns:
             o3d.t.geometry.PointCloud: Combined point cloud with specified coloring
         """
-        # stack positions
-        position_tensors: List[np.ndarray] = [pcd_1.point['positions'].numpy(), 
-                                             pcd_2.point['positions'].numpy()]
-        stacked_positions: o3c.Tensor = o3c.Tensor(np.vstack(position_tensors), 
-                                                  dtype=o3c.Dtype.Float32)
+        assert isinstance(pcds, list), f"pcds must be a list, but got {type(pcds)}"
+        assert len(pcds) > 0, f"pcds must have at least one point cloud, but got {len(pcds)}"
+        assert len(colors) == len(pcds) if use_distinct_colors else True, \
+            f"Number of colors ({len(colors)}) must match number of point clouds ({len(pcds)})"
         
-        # handle colors based on mode
+        num_pcds = len(pcds)
+        
+        position_tensors: List[np.ndarray] = [pcd.point['positions'].numpy() for pcd in pcds]
+        stacked_positions: o3c.Tensor = o3c.Tensor(np.vstack(position_tensors), dtype=o3c.Dtype.Float32)
+        
         if use_distinct_colors:
             color_tensors: List[np.ndarray] = [
-                np.tile(color_1, (pcd_1.point['positions'].shape[0], 1)),
-                np.tile(color_2, (pcd_2.point['positions'].shape[0], 1))
+                np.tile(color, (pcd.point['positions'].shape[0], 1))
+                for pcd, color in zip(pcds, colors)
             ]
         else:
-            color_tensors: List[np.ndarray] = [
-                pcd_1.point['colors'].numpy(),
-                pcd_2.point['colors'].numpy()
-            ]
-        
-        stacked_colors: o3c.Tensor = o3c.Tensor(np.vstack(color_tensors), 
-                                               dtype=o3c.Dtype.UInt8)
+            color_tensors: List[np.ndarray] = [pcd.point['colors'].numpy() for pcd in pcds]
+            
+        stacked_colors: o3c.Tensor = o3c.Tensor(np.vstack(color_tensors), dtype=o3c.Dtype.UInt8)
 
         # create a unified point cloud
         map_to_tensors: Dict[str, o3c.Tensor] = {
@@ -774,11 +770,92 @@ class OccMap:
         return colored_pcd
 
     @staticmethod
+    def downsample_pcd_by_class(pcd: o3d.t.geometry.PointCloud,
+                                classes_to_downsample: List[int] = None,
+                                voxel_size: float = 0.01) -> o3d.t.geometry.PointCloud:
+        """Downsample points in a point cloud, optionally only downsampling specific classes.
+        
+        Args:
+            pcd: Input point cloud to downsample
+            classes_to_downsample: List of class labels to downsample. If None, downsample all points
+            voxel_size: Size of voxels for downsampling
+            
+        Returns:
+            o3d.t.geometry.PointCloud: Downsampled point cloud
+        """
+        # get the labels from the pcd
+        labels = pcd.point['label'].numpy()
+
+        if classes_to_downsample is None:
+            # if no classes to downsample, downsample all points
+            downsampled_points = pcd.voxel_down_sample(voxel_size)
+            downsampled_pcd = downsampled_points
+        else:
+            # create a mask for points that should be downsampled
+            label_mask = np.isin(labels, classes_to_downsample)
+            
+            # downsample only the points with the specified labels
+            points_to_downsample = pcd.select_by_mask(o3c.Tensor(label_mask.ravel()))
+            downsampled_points = points_to_downsample.voxel_down_sample(voxel_size)
+            
+            # create a mask for points that should not be downsampled
+            mask_not_downsample = ~label_mask
+            points_not_to_downsample = pcd.select_by_mask(o3c.Tensor(mask_not_downsample.ravel()))
+            
+            # combine the downsampled points with the points that were not downsampled
+            downsampled_pcd = OccMap.combine_pcds([downsampled_points, points_not_to_downsample])
+            
+        return downsampled_pcd
+
+    @staticmethod
+    def filter_near_points(visible_pcd: o3d.t.geometry.PointCloud,
+                           hidden_pcd: o3d.t.geometry.PointCloud,
+                           radius: float = 0.01) -> o3d.t.geometry.PointCloud:
+        """Filter visible_pcd points that are near to hidden_pcd points.
+        
+        Args:
+            visible_pcd: Point cloud containing visible points
+            hidden_pcd: Point cloud containing hidden points
+            radius: Minimum distance from hidden points (default: 0.01)
+            
+        Returns:
+            o3d.t.geometry.PointCloud: Filtered point cloud
+        """
+        
+        # if no hidden points, return visible_pcd
+        hidden_points = hidden_pcd.point['positions'].numpy()
+        if len(hidden_points) == 0:
+            return visible_pcd
+            
+        # convert to legacy point cloud for nearest neighbor operations
+        hidden_legacy = o3d.geometry.PointCloud()
+        hidden_legacy.points = o3d.utility.Vector3dVector(hidden_points)
+        
+        visible_legacy = o3d.geometry.PointCloud()
+        visible_legacy.points = o3d.utility.Vector3dVector(
+            visible_pcd.point['positions'].numpy())
+        
+        # find points that are far enough from hidden points
+        distances = np.asarray(visible_legacy.compute_point_cloud_distance(hidden_legacy))
+        far_mask = distances >= radius
+        
+        # filter points
+        filtered_pcd = o3d.t.geometry.PointCloud()
+        filtered_pcd.point['positions'] = o3c.Tensor(
+            visible_pcd.point['positions'].numpy()[far_mask])
+        filtered_pcd.point['colors'] = o3c.Tensor(
+            visible_pcd.point['colors'].numpy()[far_mask])
+            
+        return filtered_pcd
+
+    @staticmethod
     def get_stereo_occ_pcd(sfm_pcd: o3d.t.geometry.PointCloud,
                            stereo_pcd: o3d.t.geometry.PointCloud,
                            K: np.ndarray,
                            to_crop: bool = True,
                            bb: Dict[str, float] = None,
+                           classes_to_downsample: List[int] = [3],
+                           voxel_size: float = 0.01,
                            img_shape: Tuple[int, int] = (1080, 1920), 
                            logging_level: int = 0) -> o3d.t.geometry.PointCloud:
         """Generate point cloud with occluded points colored using both SfM and stereo point clouds.
@@ -787,8 +864,9 @@ class OccMap:
             sfm_pcd: Input SfM point cloud
             stereo_pcd: Input stereo point cloud
             K: 3x3 camera intrinsic matrix
-            P: 3x4 camera extrinsic matrix [R|t]
             bb: Optional bounding box for cropping
+            classes_to_downsample: List of class labels to downsample. If None, downsample all points
+            voxel_size: Size of voxels for downsampling
             to_crop: Whether to crop the point clouds
             img_shape: Tuple of (height, width) for projection
             
@@ -815,6 +893,9 @@ class OccMap:
         sfm_hidden_mask: np.ndarray = np.zeros(len(sfm_depths), dtype=bool)
         sfm_bound_mask: np.ndarray = np.zeros(len(sfm_depths), dtype=bool)
 
+        assert len(sfm_u) == len(sfm_v) == len(sfm_depths), \
+            f"sfm_u, sfm_v, and sfm_depths must have the same length"
+
         for i, (u, v, d) in enumerate(zip(sfm_u, sfm_v, sfm_depths)):
             if 0 <= u < w and 0 <= v < h:
                 if d > depth_buffer[v, u] + OccMap.DEPTH_THRESHOLD:
@@ -822,78 +903,78 @@ class OccMap:
             else:
                 sfm_bound_mask[i] = True
 
-        # get indices of points that don't belong to either mask
-        non_masked = ~(sfm_hidden_mask | sfm_bound_mask)
         
-        # split point cloud into masked and non-masked parts
         positions = sfm_pcd_cropped.point['positions'].numpy()
         colors = sfm_pcd_cropped.point['colors'].numpy()
-        
-        # create separate point clouds for masked and non-masked points
-        masked_pcd = o3d.t.geometry.PointCloud()
-        masked_pcd.point['positions'] = o3c.Tensor(positions[sfm_hidden_mask | sfm_bound_mask])
-        masked_pcd.point['colors'] = o3c.Tensor(colors[sfm_hidden_mask | sfm_bound_mask])
-        
-        non_masked_pcd = o3d.t.geometry.PointCloud()
-        non_masked_pcd.point['positions'] = o3c.Tensor(positions[non_masked])
-        non_masked_pcd.point['colors'] = o3c.Tensor(colors[non_masked])
-        
-        VOXEL_SIZE = 0.01
-        RADIUS = 0.01
+        labels = sfm_pcd_cropped.point['label'].numpy()
 
-        # downsample non-masked points
-        downsampled_pcd = non_masked_pcd.voxel_down_sample(VOXEL_SIZE)
+        # get indices of points that don't belong to either mask
+        visible_mask = ~(sfm_hidden_mask | sfm_bound_mask)
+
+        # separate pcds for hidden, bound, and visible points
+        hidden_pcd = o3d.t.geometry.PointCloud()
+        bound_pcd = o3d.t.geometry.PointCloud()
+        visible_pcd = o3d.t.geometry.PointCloud()
         
-        # remove points near hidden points
-        hidden_points = positions[sfm_hidden_mask]
-        if len(hidden_points) > 0:
-            # convert to legacy point cloud for nearest neighbor operations
-            hidden_legacy = o3d.geometry.PointCloud()
-            hidden_legacy.points = o3d.utility.Vector3dVector(hidden_points)
-            
-            downsampled_legacy = o3d.geometry.PointCloud()
-            downsampled_legacy.points = o3d.utility.Vector3dVector(
-                downsampled_pcd.point['positions'].numpy())
-            
-            # find points that are far enough from hidden points
-            distances = np.asarray(downsampled_legacy.compute_point_cloud_distance(hidden_legacy))
-            far_mask = distances >= RADIUS
-            
-            # filter points
-            downsampled_filtered = o3d.t.geometry.PointCloud()
-            downsampled_filtered.point['positions'] = o3c.Tensor(
-                downsampled_pcd.point['positions'].numpy()[far_mask])
-            downsampled_filtered.point['colors'] = o3c.Tensor(
-                downsampled_pcd.point['colors'].numpy()[far_mask])
-        else:
-            downsampled_filtered = downsampled_pcd
+        # create hidden_pcd 
+        hidden_pcd.point['positions'] = o3c.Tensor(positions[sfm_hidden_mask])
+        hidden_pcd.point['colors'] = o3c.Tensor(colors[sfm_hidden_mask])
         
-        # combine masked and processed non-masked points
-        final_pcd = OccMap.combine_pcds(masked_pcd, downsampled_filtered)
+        # create bound_pcd
+        bound_pcd.point['positions'] = o3c.Tensor(positions[sfm_bound_mask])
+        bound_pcd.point['colors'] = o3c.Tensor(colors[sfm_bound_mask])
+
+        # create non_masked_pcd
+        visible_pcd.point['positions'] = o3c.Tensor(positions[visible_mask])
+        visible_pcd.point['colors'] = o3c.Tensor(colors[visible_mask])
+        visible_pcd.point['label'] = o3c.Tensor(labels[visible_mask])
+        
+        # downsample vine_canopy points
+        visible_downsampled = OccMap.downsample_pcd_by_class(visible_pcd, 
+                                                             classes_to_downsample=classes_to_downsample,
+                                                             voxel_size=voxel_size)
+
+        # filter visible points that are near to hidden points
+        visible_filtered = OccMap.filter_near_points(visible_downsampled, 
+                                                     hidden_pcd, 
+                                                     radius=0.01)
+
+        # visible_downsampled = OccMap.downsample_pcd_by_class(visible_pcd, 
+        #                                                           voxel_size=0.01)
+
+        # visible_filtered = OccMap.filter_near_points(visible_downsampled, hidden_pcd, 
+        #                                       radius=0.01)
+
+        final_pcd = OccMap.combine_pcds([hidden_pcd, bound_pcd, visible_filtered])
+        
+        total_points = len(final_pcd.point['positions'])
+        num_hidden = len(hidden_pcd.point['positions'])
+        num_bound = len(bound_pcd.point['positions'])
+
+        
+        # re-create masks for hidden and bound points
+        new_hidden_mask = np.zeros(total_points, dtype=bool)
+        new_bound_mask = np.zeros(total_points, dtype=bool)
+
+        # now we can safely set the masks knowing the exact order
+        new_hidden_mask[:num_hidden] = True
+        new_bound_mask[num_hidden:num_hidden + num_bound] = True
+
+        logger.info(f"===========================")
+        logger.info(f"STEREO OCC-MASK GENERATION:")
+        logger.info(f"- total points: {len(positions)}")
+        logger.info(f"- hidden points: {new_hidden_mask.sum()}")
+        logger.info(f"- bound points: {new_bound_mask.sum()}")
+        logger.info(f"- % hidden: {100 * new_hidden_mask.sum() / total_points:.2f}%")
+        logger.info(f"- % bound: {100 * new_bound_mask.sum() / total_points:.2f}%")
+        logger.info(f"- % occ: {100 * (new_hidden_mask.sum() + new_bound_mask.sum()) / total_points:.2f}%")
+        logger.info(f"===========================\n")
         
         # color points using the new method
         hidden_color = np.array([241, 196, 15])     # sun yellow
         bound_color = np.array([142, 68, 173])   # wisteria purple
         
-        # recreate masks for the combined point cloud
-        total_points = len(final_pcd.point['positions'])
-        masked_points = len(masked_pcd.point['positions'])
-        new_hidden_mask = np.zeros(total_points, dtype=bool)
-        new_bound_mask = np.zeros(total_points, dtype=bool)
-        
-        # set masks for the original masked points
-        new_hidden_mask[:len(positions[sfm_hidden_mask])] = True
-        new_bound_mask[len(positions[sfm_hidden_mask]):masked_points] = True
-        
-        OccMap.logger.info(f"===========================")
-        OccMap.logger.info(f"STEREO OCC-MASK GENERATION:")
-        OccMap.logger.info(f"- original points: {len(positions)}")
-        OccMap.logger.info(f"- points after processing: {total_points}")
-        OccMap.logger.info(f"- hidden points: {new_hidden_mask.sum()}")
-        OccMap.logger.info(f"- bound points: {new_bound_mask.sum()}")
-        OccMap.logger.info(f"- downsampled points: {total_points - masked_points}")
-        OccMap.logger.info(f"===========================\n")
-
         OccMap.add_mask_color_to_pcd(final_pcd, [new_hidden_mask, new_bound_mask], 
                                     [hidden_color, bound_color])
+
         return final_pcd
