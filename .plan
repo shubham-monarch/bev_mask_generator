@@ -328,15 +328,25 @@ fix occ-mask-generator
 + remove np.meshgrid
 + how does the stereo-img look in case of severe occlusion? 
 - tune disparity for nan disp points
+- does downsampling affect occ-%? 
+- test with voxel-size 0.02 / 0.05
+- refactor get_stereo_pcd to pass nan_fill_value params
+- add selective downsampling
+- refactor get_stereo_occ_pcd
 
 ======================
 demo
 ======================
 - generate a sample '4' folder
+- modulate index in demo
 - alignment of stereo-pcd and sfm-pcd
-- upto 10% improvement
+- upto 30% improvement
 - show stereo reprojected image
+
 - show sfm-occ-pcd / stereo-occ-pcd
 - show the case of tractor hood occlusion in stereo-occ-pcd
+- justify the purple patch
+- improve validation loss would come from better data pre-processing / hyper-parameters tuning / architecture
+- integrating occ-mask to sbevnet
+
 - dairy at 1500 frames
-- ipm?
