@@ -1,71 +1,5 @@
-+ priority based collapsing
-+ resolution based collapsing
-+ refactoring generate_bev_voxels()
-
-+ handling negative values
-+ shift logger to init.py
-+ fix plot_bev_scatter() color issue
-
-
-+ priority based collapsing
-+ crop pointcloud to bounding boxs
-+ farthest point sampling
-* checkout bev-former voxelizer
-+ statistical outlier removal
-+ refactor compute_tilt_matrix()
-+ make project_to_ground_plane more robust
-
-+ remove main.py
-+ major refactoring 
-+ remove utils folder
-
-* make [pcd-segmented to bev-segmented pipeline] fast
-* use GPU parallelization
-* use CPU parallelization
-
-- get decent baseline results
-* time the dataset generation step
-
-
-+ BEV GT should be centered
-* BEV GT should not have black regions
-+ BEV GT should have fixed resolution across files
-
-+ fix camera extrinsics 
-
-* need to shift z as well
-* fix [align normal with +y-axis if angle with y-axis is negative] in [project_to_ground_plane]
-* normalize plane normal --> [a,b,c,d]
-* BEV projection was shifted along y. 
-+ [debug] project pointcloud to camera to check camera extrinsics
-- fix label merging strategy in pcd_to_seg_mask_mono
-
-* fix compute_tilt_matrix --> align with x and z-axis as well  
-* need to align two axes instead of one
-* [debug] align x and z, and y should automatically align
-
-+ generate camera extrinsics as part of dataset
-* why is normal not completely aligning with the y-axis? 
-
-* add test.py
-- change co-ordinate frame to align with the sbevnet axes
-+ update generate-train-data.py
-- [debug] sbvenet with only [canopy + navigable-space] as output
-
-* fix yaw / axis-angle logs in bev-generator
-
-+ fix BEV GT seg-masks
-- do we need to add real camera extrinsics? 
-- camera instrinsics scaling with image resizing -> [https://chatgpt.com/share/67582768-d0c4-8009-a9b3-edf805c2d2f3]
-- stereo rectification 
-- handle image resizing effect on disparity
-- z / y swap
-- transpose effect
-- z-indices out-of-bounds error while bev_pcd -> bev_png 
-
-
 ======================
-testing procedure
+testing 
 ======================
 - testing sequence
 - with camera extrinsics npy
@@ -76,8 +10,6 @@ testing procedure
 - with disparity scaling
 - with transpose
 - with z-bound error fix
-
-
 + add utility to push model-data to s3
 
 
@@ -91,6 +23,7 @@ aws based bev-generator
 - data field agnostic resumption [i.e. left / right / mono / seg-masks-mono / seg-masks-rgb / occlusion-mask]
 - upload updated index to s3 in every run
 + [util] count number of files in s3 bev-dataset
+
 
 ======================
 implement leafFolder class
@@ -144,59 +77,71 @@ sbevnet
 - train / eval / test split
 - processing bev-aws to bev-model pipeline
 - utility to classify dataset into [object / pole / vineyard ] heavy
-
 + add as submodule to stereo-occ
-- refactoring [scripts, .gitkeep, bash]
-+ fix horizonal rotation in GT-seg-masks 
-+ fix slanting of pole lines \ uneven vine pole horizontal separation
-- fix camera extrinsics calculations
-+ review tilt correction --> axis angles calculations 
-- start occlusion map pipeline
-+ tighten compute_tilt_matrix threshold
-* log global success rate for compute_tilt_matrix
-- add comments for all the functions
-- use repomix with o1 / gemini-1206 / sonnet 3.5
-- verify number of frames in z[0-5] with z[2-7]
-+ clean up compute_tilt_matrix
-- check z-min for each GT-seg-masks [for void space calculations]
-* verify case ground plane normal alignment with -ve y-axis case
-+ improve ground plane alignment with cam y-axis\
-+ horizontal tilt / swaying could be because of seg-mask generation bug
-+ visualize the complete mask to see the tilt issue
-- check the x/y/z-range of non-void points in each segmented pcd
-* visualize the bev-pcd before collapsing to z=0
-
+- train one class at a time
 - warm-up + cool-down 
 - pytorch lightening
 - pytorch fabric
-
-+ rename files inside the test folder
-
-- establish bug in bev_to_seg_mask_mono
-+ add priority map in bev_to_seg_mask_mono
-+ bev_to_seg_mask_mono might be wrong because of no xmax, zmax
-+ bev_to_seg_mask_mono --> bev_pcd_to_seg_mask_mono
-+ label calculation in wrong in bev_to_seg_mask_mono
-+ assign highest-priority to occ-mask
 - check occ-mask integration in sbevnet
-
-- pass unequal x and z-ranges
-- increase z and decrease x
-- change the color space for data augmenatation
-- reprojection error 
-- use data-augmentation to increase frame-cnt in sbevnet
-- fill ground points in GT-seg-masks
-- support for rectangular seg-masks
-- shouldn't the seg-mask be straight even if the camera is tilted? 
+- data augmentation
+- undo tilt correction in sbevnet_get_grid_one
 - fix / review disparity scaling in sbevnet
 - fix / review / improve image pre-processing step 
-- data augmentation
-
+- [debug] sbvenet with only [canopy + navigable-space] as output
+- stereo rectification 
+- handle image resizing effect on disparity
+- z / y swap
+- transpose effect
+- review disparity scaling
 
 
 ======================
-fix bev-generator
+fix bev-mask-generator
 ======================
++ priority based collapsing
++ resolution based collapsing
++ refactoring generate_bev_voxels()s
++ handling negative values
++ shift logger to init.py
++ fix plot_bev_scatter() color issue
++ priority based collapsing
++ crop pointcloud to bounding boxs
++ farthest point sampling
+* checkout bev-former voxelizer
++ statistical outlier removal
++ refactor compute_tilt_matrix()
++ make project_to_ground_plane more robust
++ remove main.py
++ major refactoring 
++ remove utils folder
+* make [pcd-segmented to bev-segmented pipeline] fast
+* use GPU parallelization
+* use CPU parallelization
+- get decent baseline results
+* time the dataset generation step
++ BEV GT should be centered
+* BEV GT should not have black regions
++ BEV GT should have fixed resolution across files
++ fix camera extrinsics 
+* need to shift z as well
+* fix [align normal with +y-axis if angle with y-axis is negative] in [project_to_ground_plane]
+* normalize plane normal --> [a,b,c,d]
+* BEV projection was shifted along y. 
++ [debug] project pointcloud to camera to check camera extrinsics
+- fix label merging strategy in pcd_to_seg_mask_mono
+* fix compute_tilt_matrix --> align with x and z-axis as well  
+* need to align two axes instead of one
+* [debug] align x and z, and y should automatically align
++ generate camera extrinsics as part of dataset
+* why is normal not completely aligning with the y-axis? 
+* add test.py
+- change co-ordinate frame to align with the sbevnet axes
++ update generate-train-data.py
+* fix yaw / axis-angle logs in bev-generator
++ fix BEV GT seg-masks
+- do we need to add real camera extrinsics? 
+- camera instrinsics scaling with image resizing -> [https://chatgpt.com/share/67582768-d0c4-8009-a9b3-edf805c2d2f3]
+- z-indices out-of-bounds error while bev_pcd -> bev_png 
 * check if dz is constant across subsequent frames
 + why is z becoming more negative across frames?
 + check if GT-seg-masks being passed to sbevnet is flipped? 
@@ -232,38 +177,77 @@ fix bev-generator
 + pcd_ground has not been downsampled before seg-mask generation
 * make bev-generator functions private
 - does img resizing affect the occ-map generation?
-- ignore pcd_ground from occ-mask calculations
-- load K from zed-sdk
-- fix intermittent out-of-memory issue for occ-map
+* ignore pcd_ground from occ-mask calculations
+* load K from zed-sdk
++ fix intermittent out-of-memory issue for occ-map
 + test occ-map with debug/frames-4/
-- write better comments
-- add raises in doc-strings
+* write better comments
+* add raises in doc-strings
 + rename bev_generator.py to bev_mask_generator.py
-- update bb value in data-generator-s3
-- set bb to {'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5}
-- remove invalid points (project to [1080 * 1920] image) before generating bev-mask
-- don't downsample navigable / canopy
-- does removing the pcd_navigable / canopy downsampling reduce the black patches in seg-mask?
 + fix multiple tilt-rectification in bev_generator
 - why are there no obstacles in seg-mask-mono if 63 are present in downsampled_pcd?
 - why does seg-mask-mono have label 255? 
 - check if camera / pointcloud is tilted in the colmap viewer
 + compare rectified and non-rectified pcd in the colmap viewer
-- create unknown class with priority 99
-- still getting intermittent z-out of bounds error while generating bev-masks
-- shouldn't the seg-mask be straight even if the camera is tilted? 
-
+* create unknown class with priority 99
 - start bev-mask-generator-DAIRY pipeline 
-- undo tilt correction in sbevnet_get_grid_one
-
 + generate labels using MAVIS file
 + double label logging
 + time label_collapsing step
-
 + remove radius-outlier filtering in bev_mask_generator
 - add collapsing mechanism for dairy_mask_generator
 - combine feed-pusher + cows
 - check need for priority-based label collapsing mechanism for dairy
++ rename files inside the test folder
+- establish bug in bev_to_seg_mask_mono
++ add priority map in bev_to_seg_mask_mono
++ bev_to_seg_mask_mono might be wrong because of no xmax, zmax
++ bev_to_seg_mask_mono --> bev_pcd_to_seg_mask_mono
++ label calculation in wrong in bev_to_seg_mask_mono
++ assign highest-priority to occ-mask
+- check occ-mask integration in sbevnet
+- pass unequal x and z-ranges
+- increase z and decrease x
+- change the color space for data augmenatation
+- reprojection error 
+- use data-augmentation to increase frame-cnt in sbevnet
+- fill ground points in GT-seg-masks
+- support for rectangular seg-masks
+- shouldn't the seg-mask be straight even if the camera is tilted? 
+- data augmentation
+- update bb value in data-generator-s3
+- set bb to {'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5}
+- update bb value to get rid of out of view points
+- still getting intermittent z-out of bounds error while generating bev-masks
+- shouldn't the seg-mask be straight even if the camera is tilted? 
+- remove invalid points (project to [1080 * 1920] image) before generating bev-mask
+- don't downsample navigable / canopy
+- does removing the pcd_navigable / canopy downsampling reduce the black patches in seg-mask?
+- add 6 * 6 maps instead of 5 * 5
+- what should be the resolution of the bev-seg-masks?
+- start frame augmentation pipeline
+- refactor bev_mask_generator to add @staticmethods
+- rename bev_mask_generator_dairy, bev_mask_generator_vineyards
+- refactoring [scripts, .gitkeep, bash]
++ fix horizonal rotation in GT-seg-masks 
++ fix slanting of pole lines \ uneven vine pole horizontal separation
+- fix camera extrinsics calculations
++ review tilt correction --> axis angles calculations 
+- start occlusion map pipeline
++ tighten compute_tilt_matrix threshold
+* log global success rate for compute_tilt_matrix
+* add comments for all the functions
+- use repomix with o1 / gemini-1206 / sonnet 3.5
+- verify number of frames in z[0-5] with z[2-7]
++ clean up compute_tilt_matrix
+- check z-min for each GT-seg-masks [for void space calculations]
+* verify case ground plane normal alignment with -ve y-axis case
++ improve ground plane alignment with cam y-axis\
++ horizontal tilt / swaying could be because of seg-mask generation bug
++ visualize the complete mask to see the tilt issue
+- check the x/y/z-range of non-void points in each segmented pcd
+* visualize the bev-pcd before collapsing to z=0
+
 
 ======================
 fix occ-mask-generator
@@ -294,59 +278,37 @@ fix occ-mask-generator
 + check occ-map-generation logic, is index tracking needed 
 - compare with cam-intrinsics set to sbevnet values
 - why is the optical axis parallel to the ground? 
-
 + compare the variation in ground tilt for all the frames in a leaf folder
 + log R in axis-angles
-
 + are stereo-images rectified? 
 * use inlier fitting in stereo-rectification check
-
 + use stereo images to generate occ-map 
 - project everything to the left camera frame (see AI day)
-
 + use left-rgb.ply + color comparsion for occ-points
 + visualize the disparity map
 + tune max_disp? 
 + fix column issue in disp_map
-
 - [why] are the closest vine poles always getting occluded? 
 - [why] everything with z < 1.5m is being marked as occluded (becuase of tractorhood)?
-
 - fix ground plane tilt
-
 + stereo-pcd angles are wrong
-
-
 - need to P to occ_pcd / stereo_occ_pcd calculations?
 - tune OccMask.DEPTH_THRESHOLD using fx, fy
 + [debug] use OccMap.visualize_pointcloud
 - vertical disparity in left-img and left-img projections
 - sfm-img aligns with stereo-img but doesn't align with left-img. Why? 
-
-- handle na values in stereo-pcd
-- plot NA values in stereo-pcd
+* handle na values in stereo-pcd
+* plot NA values in stereo-pcd
 + remove np.meshgrid
 + how does the stereo-img look in case of severe occlusion? 
-- tune disparity for nan disp points
-- does downsampling affect occ-%? 
-- test with voxel-size 0.02 / 0.05
-- refactor get_stereo_pcd to pass nan_fill_value params
-- add selective downsampling
-- refactor get_stereo_occ_pcd
++ tune disparity for nan disp points
+* does downsampling affect occ-%? 
+* test with voxel-size 0.02 / 0.05
++ refactor get_stereo_pcd to pass nan_fill_value params
++ add selective downsampling
++ refactor get_stereo_occ_pcd
 
-======================
-demo
-======================
-- generate a sample '4' folder
-- modulate index in demo
-- alignment of stereo-pcd and sfm-pcd
-- upto 30% improvement
-- show stereo reprojected image
 
-- show sfm-occ-pcd / stereo-occ-pcd
-- show the case of tractor hood occlusion in stereo-occ-pcd
-- justify the purple patch
-- improve validation loss would come from better data pre-processing / hyper-parameters tuning / architecture
-- integrating occ-mask to sbevnet
+- carefully pass P to the occ-mask
+- write test to verify
 
-- dairy at 1500 frames
