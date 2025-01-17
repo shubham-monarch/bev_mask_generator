@@ -906,7 +906,7 @@ class OccMap:
         bound_pcd.point['positions'] = o3c.Tensor(positions[sfm_bound_mask])
         bound_pcd.point['colors'] = o3c.Tensor(colors[sfm_bound_mask])
 
-        # create non_masked_pcd
+        # create visible_pcd
         visible_pcd.point['positions'] = o3c.Tensor(positions[visible_mask])
         visible_pcd.point['colors'] = o3c.Tensor(colors[visible_mask])
         visible_pcd.point['label'] = o3c.Tensor(labels[visible_mask])

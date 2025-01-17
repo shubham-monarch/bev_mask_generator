@@ -25,6 +25,7 @@ logger = get_logger("debug_cases")
 
 def test_stereo_pcd_occ():
     """Case 12: Test stereo point cloud occlusion map generation"""
+    
     pcd_dir = Path("debug/frames-4")
     output_dir = Path("debug/4")
     output_dirs = {
@@ -35,12 +36,20 @@ def test_stereo_pcd_occ():
         "occ_pcd": output_dir / "occ-pcd",
         "stereo_pcd": output_dir / "stereo-pcd",
         "sfm_pcd": output_dir / "sfm-pcd",
+        "sfm_pcd_downsampled": output_dir / "sfm-pcd-downsampled",
         "stereo_occ_pcd": output_dir / "stereo-occ-pcd",
         "sfm_occ_pcd": output_dir / "sfm-occ-pcd",
+        "combined_pcd": output_dir / "combined-pcd",
         "stereo_img": output_dir / "stereo-img",
         "sfm_img": output_dir / "sfm-img"
     }
-    
+
+    # output_dirs should be empty
+    for dir_path in output_dirs.values():
+        if dir_path.exists():
+            assert not any(dir_path.iterdir()), f"Output directory {dir_path} is not empty."
+
+
     for dir_path in output_dirs.values():
         dir_path.mkdir(parents=True, exist_ok=True)
     
@@ -58,12 +67,14 @@ def test_stereo_pcd_occ():
                             [0, 1090.536, 523.12],
                             [0, 0, 1]], dtype=np.float32)
     
-    # process each pcd file
-    for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
-        try:
 
-            # if idx > 1:
-            #     break
+    index_list = [0, 1, 2, 6, 7, 12, 13]
+    # index_list = [0]
+    
+    # process each pcd file
+    for idx in tqdm(index_list, desc="Processing point clouds"):
+        try:
+            pcd_path = pcd_files[idx]
             
             logger.warning("───────────────────────────────")
             logger.warning(f"IDX: {idx}")
@@ -89,15 +100,30 @@ def test_stereo_pcd_occ():
             o3d.t.io.write_point_cloud(str(output_dirs["sfm_pcd"] / f"sfm-pcd-{idx}.ply"), sfm_pcd)
             
             
+            # downsample sfm pcd
+            sfm_pcd_downsampled = sfm_pcd.voxel_down_sample(voxel_size=0.01)
+            o3d.t.io.write_point_cloud(str(output_dirs["sfm_pcd_downsampled"] / f"sfm-pcd-downsampled-{idx}.ply"), sfm_pcd_downsampled)
+
             # generate and save stereo point cloud
-            stereo_pcd = OccMap.get_stereo_pcd(left_img, right_img,
-                                              K=camera_matrix,
-                                              baseline=0.12)
             
-            o3d.t.io.write_point_cloud(str(output_dirs["stereo_pcd"] / f"stereo-pcd-{idx}.ply"), stereo_pcd)
+            # fill nan with 0
+            stereo_pcd_0 = OccMap.get_stereo_pcd(left_img, right_img,
+                                              K=camera_matrix,
+                                              baseline=0.12,
+                                              fill_nan_value=0)
+
+            # fill nan with 120
+            stereo_pcd_120 = OccMap.get_stereo_pcd(left_img, right_img,
+                                              K=camera_matrix,
+                                              baseline=0.12,
+                                              fill_nan_value=120)
+
+
+
+            o3d.t.io.write_point_cloud(str(output_dirs["stereo_pcd"] / f"stereo-pcd-{idx}.ply"), stereo_pcd_0)
             
             # save stereo / sfm pcd projections
-            stereo_img = OccMap.project_pcd_to_img(stereo_pcd,
+            stereo_img_0 = OccMap.project_pcd_to_img(stereo_pcd_0,
                                        K=camera_matrix,
                                        img_shape = (1080, 1920),
                                        visualize=False)
@@ -107,7 +133,7 @@ def test_stereo_pcd_occ():
                                        img_shape = (1080, 1920),
                                        visualize=False)
             
-            cv2.imwrite(str(output_dirs["stereo_img"] / f"stereo-img-{idx}.jpg"), stereo_img)
+            cv2.imwrite(str(output_dirs["stereo_img"] / f"stereo-img-{idx}.jpg"), stereo_img_0)
             cv2.imwrite(str(output_dirs["sfm_img"] / f"sfm-img-{idx}.jpg"), sfm_img)
 
 
@@ -115,6 +141,7 @@ def test_stereo_pcd_occ():
             # WITH CROP
             sfm_occ_pcd = OccMap.get_sfm_occ_pcd(
                 sfm_pcd,
+                # sfm_pcd_downsampled,
                 K = camera_matrix, 
                 to_crop=True,
                 bb={'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5},
@@ -135,7 +162,8 @@ def test_stereo_pcd_occ():
             # generate occlusion map using both sfm and stereo point clouds
             stereo_occ_pcd = OccMap.get_stereo_occ_pcd(
                 sfm_pcd=sfm_pcd,
-                stereo_pcd=stereo_pcd,
+                # sfm_pcd=sfm_pcd_downsampled,
+                stereo_pcd=stereo_pcd_120,
                 K=camera_matrix,
                 to_crop=True,
                 bb={'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5},
@@ -147,9 +175,19 @@ def test_stereo_pcd_occ():
                 stereo_occ_pcd
             )
             
+            # combine pcds
+            
+            # red for stereo pcd
+            colored_stereo_pcd = OccMap.color_pcd(stereo_pcd_0, color=[255, 0, 0])
+            
+            # yellow for sfm pcd
+            colored_sfm_pcd = OccMap.color_pcd(sfm_pcd, color=[255, 255, 0])
+
+            combined_pcd = OccMap.combine_pcds([colored_stereo_pcd, colored_sfm_pcd])
+            o3d.t.io.write_point_cloud(str(output_dirs["combined_pcd"] / f"combined-pcd-{idx}.ply"), combined_pcd)
             
         except Exception as e:
-            logger.error(f"Error processing {pcd_path}: {str(e)}")
+            logger.error(f"Error processing {pcd_files[idx]}: {str(e)}")
             logger.error(traceback.format_exc())
 
 def test_stereo_pcd():
@@ -168,6 +206,9 @@ def test_stereo_pcd():
     }
     
     for dir_path in output_dirs.values():
+        # logger.info("───────────────────────────────")
+        # logger.info(f"Creating directory: {dir_path}")
+        # logger.info("───────────────────────────────")
         dir_path.mkdir(parents=True, exist_ok=True)
     
     # Find all PCD files
@@ -184,8 +225,8 @@ def test_stereo_pcd():
     for idx, pcd_path in enumerate(tqdm(pcd_files, desc="Processing point clouds")):
         try:
 
-            if idx > 1:
-                break
+            # if idx > 1:
+            #     break
             
             # Read and process images
             img_dir = pcd_path.parent
@@ -239,7 +280,7 @@ def test_stereo_pcd():
             o3d.t.io.write_point_cloud(str(output_dirs["stereo_pcd"] / f"stereo-pcd-{idx}.ply"), stereo_pcd)
 
             # combine pcds
-            sfm_pcd = OccMap.color_pcd(sfm_pcd, color=[255, 0, 255])
+            # sfm_pcd = OccMap.color_pcd(sfm_pcd, color=[255, 0, 255])
             # combined_pcd = OccMap.combine_pcds(sfm_pcd, stereo_pcd, use_distinct_colors=False)
             combined_pcd = OccMap.combine_pcds(stereo_pcd, sfm_pcd, use_distinct_colors=False)
             
