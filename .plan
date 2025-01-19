@@ -312,3 +312,9 @@ fix occ-mask-generator
 - carefully pass P to the occ-mask
 - write test to verify
 
+======================
+demo 
+======================
+- run with 300 frames on workstation svo 
+- increase bev-seg-mask range
+- crop negative z-points in left-segmented-labelled.ply
