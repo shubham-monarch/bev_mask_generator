@@ -54,7 +54,8 @@ def mono_to_rgb_mask(mono_mask: np.ndarray, yaml_path: str = None) -> np.ndarray
     label_colors_bgr, _ = get_label_colors_from_yaml(yaml_path)
     
     H, W = mono_mask.shape
-    rgb_mask = np.zeros((H, W, 3), dtype=np.uint8)
+    # rgb_mask = np.zeros((H, W, 3), dtype=np.uint8)
+    rgb_mask = np.full((H, W, 3), 255, dtype=np.uint8)
     
     for label_id, rgb_value in label_colors_bgr.items():
         mask = mono_mask == label_id
@@ -121,3 +122,5 @@ def crop_pcd(pcd: o3d.t.geometry.PointCloud, bb: dict = None) -> o3d.t.geometry.
     )[0]
 
     return pcd.select_by_index(valid_indices)
+
+

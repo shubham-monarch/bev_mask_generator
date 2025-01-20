@@ -165,7 +165,8 @@ class BEVGenerator:
             'VINE_POLE': 2,
             'VINE_CANOPY': 3,
             'VINE_STEM': 4,
-            'NAVIGABLE_SPACE': 5     
+            'NAVIGABLE_SPACE': 5     , 
+            "VEGETATION": 6
         }
         
         self.yaml_path = yaml_path
@@ -449,6 +450,7 @@ class BEVGenerator:
         pcd_POLE: o3d.t.geometry.PointCloud = self.get_class_pointcloud(pcd_RECTIFIED, self.LABELS["VINE_POLE"]["id"])
         pcd_STEM: o3d.t.geometry.PointCloud = self.get_class_pointcloud(pcd_RECTIFIED, self.LABELS["VINE_STEM"]["id"])
         pcd_OBSTACLE: o3d.t.geometry.PointCloud = self.get_class_pointcloud(pcd_RECTIFIED, self.LABELS["OBSTACLE"]["id"])
+        pcd_VEGETATION: o3d.t.geometry.PointCloud = self.get_class_pointcloud(pcd_RECTIFIED, self.LABELS["VEGETATION"]["id"])
         pcd_NAVIGABLE: o3d.t.geometry.PointCloud = self.get_class_pointcloud(pcd_RECTIFIED, self.LABELS["NAVIGABLE_SPACE"]["id"])
         pcd_NAVIGABLE = pcd_NAVIGABLE.select_by_index(self.ground_inliers)
 
@@ -476,6 +478,7 @@ class BEVGenerator:
         down_OBSTACLE: o3d.t.geometry.PointCloud = pcd_OBSTACLE.clone()
         down_STEM: o3d.t.geometry.PointCloud = pcd_STEM.clone()
         down_POLE: o3d.t.geometry.PointCloud = pcd_POLE.clone()
+        down_VEGETATION: o3d.t.geometry.PointCloud = pcd_VEGETATION.clone()
         
         # radius-based outlier removal
         rad_filt_POLE: o3d.t.geometry.PointCloud = (
@@ -493,7 +496,9 @@ class BEVGenerator:
         
 
         # merging label-wise pointclouds
-        self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([down_NAVIGABLE, down_CANOPY, rad_filt_STEM, rad_filt_POLE, rad_filt_OBSTACLE])
+        # self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([down_NAVIGABLE, down_CANOPY, rad_filt_STEM, rad_filt_POLE, rad_filt_OBSTACLE])
+        # self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([ down_VEGETATION, down_CANOPY, rad_filt_STEM, rad_filt_POLE, rad_filt_OBSTACLE])
+        self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([rad_filt_STEM, rad_filt_POLE])
         
         # converting to BEV
         pcd_BEV_2D: o3d.t.geometry.PointCloud = self.pcd_BEV_3D.clone()

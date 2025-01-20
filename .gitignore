@@ -11,7 +11,7 @@ svo-archives/*
 **/svo_output/
 !svo_output/
 tmp-files/*
-
+debug/*
 
 # pipeline-folders
 output/*

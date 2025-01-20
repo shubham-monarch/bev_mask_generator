@@ -318,3 +318,8 @@ demo
 - run with 300 frames on workstation svo 
 - increase bev-seg-mask range
 - crop negative z-points in left-segmented-labelled.ply
+- generate rectified pcd
+- only vine poles 
+- make background white
+- release inside / outside vines dataset
+- support for unequal x / z resolution

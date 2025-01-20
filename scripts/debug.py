@@ -76,7 +76,8 @@ from scripts.debug_cases import (
     test_bev_generator,
     test_camera_extrinsics,
     test_image_size,
-    test_aws_occ_generation
+    test_aws_occ_generation, 
+    test_demo_dataset_generation
 )
 
 def main():
@@ -85,6 +86,7 @@ def main():
     
     # Register all test cases
     cases = [
+        ("case_13", "Demo Video Generation", "Generate demo-video dataset", test_demo_dataset_generation), 
         ("case_12", "Stereo PCD Occlusion", "Test stereo point cloud occlusion map generation", test_stereo_pcd_occ),
         ("case_11", "Stereo PCD", "Test stereo point cloud generation", test_stereo_pcd),
         ("case_10", "AWS Occlusion", "Test AWS version of occlusion generation", test_aws_occ_generation),
@@ -102,7 +104,7 @@ def main():
         runner.register_case(case_id, name, desc, func)
     
     # Run specific case or all cases
-    runner.run_case("case_12")
+    runner.run_case("case_13")
     # runner.run_all_enabled()
 
 if __name__ == "__main__":

@@ -14,13 +14,112 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from scripts.logger import get_logger
-from scripts.bev_mask_generator_dairy import BEVGenerator
+from scripts.bev_mask_generator import BEVGenerator
 from scripts.data_generator_s3 import DataGeneratorS3, LeafFolder
 from scripts.occ_mask_generator import OccMap
 # from scripts.helpers import get_zed_camera_params, cam_extrinsics, read_images_binary
 
 
 logger = get_logger("debug_cases")
+
+
+def test_demo_dataset_generation():
+    """Case 12: Test stereo point cloud occlusion map generation"""
+    
+    pcd_dir = Path("debug/frames-9")
+    output_dir = Path("debug/9")
+    output_dirs = {
+        "rgb-pcd": output_dir / "rgb-pcd",
+        "segmented-pcd" : output_dir / "segmented-pcd",
+        "left_img": output_dir / "left-imgs",
+        "bev-pole": output_dir / "bev-poles", 
+        "bev-all": output_dir / "bev-all"
+    }
+
+    # # output_dirs should be empty
+    # for dir_path in output_dirs.values():
+    #     if dir_path.exists():
+    #         assert not any(dir_path.iterdir()), f"Output directory {dir_path} is not empty."
+
+
+    for dir_path in output_dirs.values():
+        dir_path.mkdir(parents=True, exist_ok=True)
+    
+    # find all pcd files
+    pcd_files = []
+    for root, _, files in os.walk(pcd_dir):
+        for file in files:
+            if file == "left.ply":
+                pcd_files.append(Path(root) / file)
+    
+    pcd_files.sort()
+    
+    # # camera parameters
+    # camera_matrix = np.array([[1090.536, 0, 954.99],
+    #                         [0, 1090.536, 523.12],
+    #                         [0, 0, 1]], dtype=np.float32)
+    
+
+    # index_list = [0, 1, 2, 6, 7, 12, 13]
+    # index_list = [0]
+    
+    # process each pcd file
+    for idx in tqdm(range(0, len(pcd_files)), desc="Processing point clouds"):
+        try:
+            pcd_path = pcd_files[idx]
+
+            # logger.info("───────────────────────────────")
+            # logger.info(f"PCD path: {pcd_path}")
+            # logger.info("───────────────────────────────")
+            # continue
+
+            logger.warning("───────────────────────────────")
+            logger.warning(f"IDX: {idx}")
+            logger.warning("───────────────────────────────")
+            
+            img_dir = pcd_path.parent
+            
+            # # read and process images
+            # left_src = img_dir / "left.jpg"
+            
+            # left_img = cv2.imread(str(left_src))
+            
+            # # save processed images
+            # left_dest = output_dirs["left_img"] / f"left-img-{idx}.jpg"
+            
+            # cv2.imwrite(str(left_dest), left_img)
+            
+            # # save rgb sfm pcd
+            # rgb_pcd_path = img_dir / "left.ply"
+
+            # logger.info("───────────────────────────────")
+            # logger.info(f"RGB PCD path: {rgb_pcd_path}")
+            # logger.info("───────────────────────────────")
+
+            # rgb_pcd = o3d.t.io.read_point_cloud(str(rgb_pcd_path))
+            # o3d.t.io.write_point_cloud(str(output_dirs["rgb-pcd"] / f"rgb-pcd-{idx}.ply"), rgb_pcd)
+            
+            # # save segmented sfm pcd
+            segmented_pcd_path = img_dir / "left.ply"
+            segmented_pcd = o3d.t.io.read_point_cloud(str(segmented_pcd_path))
+            o3d.t.io.write_point_cloud(str(output_dirs["segmented-pcd"] / f"segmented-pcd-{idx}.ply"), segmented_pcd)
+            
+            # # generate and save segmentation-masks
+            bev_generator = BEVGenerator(yaml_path="config/Mavis.yaml")
+            seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(
+                        segmented_pcd, 
+                        nx=400, 
+                        nz=400, 
+                        bb={'x_min': -10.0, 'x_max': 10.0, 'z_min': 0, 'z_max': 20}
+                    )
+            
+            bev_dest = output_dirs["bev-pole"] / f"bev-{idx}.png"
+            cv2.imwrite(bev_dest, seg_mask_rgb)
+                    
+            
+        except Exception as e:
+            logger.error(f"Error processing {pcd_files[idx]}: {str(e)}")
+            logger.error(traceback.format_exc())
 
 
 def test_stereo_pcd_occ():
