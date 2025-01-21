@@ -5,7 +5,6 @@ import os
 from tqdm import tqdm
 import argparse
 import re
-
 from scripts.logger import get_logger
 
 logger = get_logger("get_video")

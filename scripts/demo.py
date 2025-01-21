@@ -203,6 +203,6 @@ def process_leaf_folders(src_URI: List[str]) -> None:
 if __name__ == "__main__":
     logger = get_logger("demo")
 
-    src_URI:List[str] = ["s3://occupancy-dataset/occ-dataset/vineyards/gallo/"]
+    src_URI:List[str] = ["s3://occupancy-dataset/occ-dataset/vineyards/RJM/"]
 
     process_leaf_folders(src_URI)

@@ -487,7 +487,9 @@ class BEVGenerator:
         )
         rad_filt_STEM: o3d.t.geometry.PointCloud = (
             down_STEM if len(down_STEM.point['positions']) == 0 
-            else self.filter_radius_outliers(down_STEM, nb_points=16, search_radius=0.05)[0]
+            else self.filter_radius_outliers(down_STEM, nb_points=100, search_radius=0.05)[0]
+            # else self.filter_radius_outliers(down_STEM, nb_points=16, search_radius=0.05)[0]
+
         )
         rad_filt_OBSTACLE: o3d.t.geometry.PointCloud = (
             down_OBSTACLE if len(down_OBSTACLE.point['positions']) == 0 
@@ -498,7 +500,12 @@ class BEVGenerator:
         # merging label-wise pointclouds
         # self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([down_NAVIGABLE, down_CANOPY, rad_filt_STEM, rad_filt_POLE, rad_filt_OBSTACLE])
         # self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([ down_VEGETATION, down_CANOPY, rad_filt_STEM, rad_filt_POLE, rad_filt_OBSTACLE])
-        self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([rad_filt_STEM, rad_filt_POLE])
+        
+        # vine-pole + vine-stem
+        # self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([rad_filt_STEM, rad_filt_POLE])
+        
+        # vine-stem
+        self.pcd_BEV_3D: o3d.t.geometry.PointCloud = self.merge_pcds([rad_filt_STEM])
         
         # converting to BEV
         pcd_BEV_2D: o3d.t.geometry.PointCloud = self.pcd_BEV_3D.clone()

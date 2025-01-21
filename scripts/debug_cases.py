@@ -26,14 +26,17 @@ logger = get_logger("debug_cases")
 def test_demo_dataset_generation():
     """Case 12: Test stereo point cloud occlusion map generation"""
     
-    pcd_dir = Path("debug/frames-9")
-    output_dir = Path("debug/9")
+    pcd_dir = Path("debug/frames-10")
+    output_dir = Path("debug/10")
     output_dirs = {
         "rgb-pcd": output_dir / "rgb-pcd",
         "segmented-pcd" : output_dir / "segmented-pcd",
         "left_img": output_dir / "left-imgs",
         "bev-pole": output_dir / "bev-poles", 
-        "bev-all": output_dir / "bev-all"
+        "bev-minus-navigable": output_dir / "bev-minus-navigable",
+        "bev-all": output_dir / "bev-all", 
+        "seg-pcd-projection": output_dir / "seg-pcd-projection",
+        "rgb-pcd-projection": output_dir / "rgb-pcd-projection"
     }
 
     # # output_dirs should be empty
@@ -55,9 +58,9 @@ def test_demo_dataset_generation():
     pcd_files.sort()
     
     # # camera parameters
-    # camera_matrix = np.array([[1090.536, 0, 954.99],
-    #                         [0, 1090.536, 523.12],
-    #                         [0, 0, 1]], dtype=np.float32)
+    camera_matrix = np.array([[1090.536, 0, 954.99],
+                            [0, 1090.536, 523.12],
+                            [0, 0, 1]], dtype=np.float32)
     
 
     # index_list = [0, 1, 2, 6, 7, 12, 13]
@@ -79,44 +82,68 @@ def test_demo_dataset_generation():
             
             img_dir = pcd_path.parent
             
-            # # read and process images
-            # left_src = img_dir / "left.jpg"
+            # read and process images
+            left_src = img_dir / "left.jpg"
             
-            # left_img = cv2.imread(str(left_src))
+            left_img = cv2.imread(str(left_src))
             
-            # # save processed images
-            # left_dest = output_dirs["left_img"] / f"left-img-{idx}.jpg"
+            # save processed images
+            left_dest = output_dirs["left_img"] / f"left-img-{idx}.jpg"
             
-            # cv2.imwrite(str(left_dest), left_img)
+            cv2.imwrite(str(left_dest), left_img)
             
-            # # save rgb sfm pcd
-            # rgb_pcd_path = img_dir / "left.ply"
+            # save rgb sfm pcd
+            rgb_pcd_path = img_dir / "left.ply"
 
-            # logger.info("───────────────────────────────")
-            # logger.info(f"RGB PCD path: {rgb_pcd_path}")
-            # logger.info("───────────────────────────────")
-
-            # rgb_pcd = o3d.t.io.read_point_cloud(str(rgb_pcd_path))
-            # o3d.t.io.write_point_cloud(str(output_dirs["rgb-pcd"] / f"rgb-pcd-{idx}.ply"), rgb_pcd)
+            rgb_pcd = o3d.t.io.read_point_cloud(str(rgb_pcd_path))
+            o3d.t.io.write_point_cloud(str(output_dirs["rgb-pcd"] / f"rgb-pcd-{idx}.ply"), rgb_pcd)
             
+            # save rgb pcd projection
+            rgb_pcd_projection = OccMap.project_pcd_to_img(rgb_pcd,
+                                                           K = camera_matrix,
+                                                           img_shape=(1080, 1920),
+                                                           visualize=False)
+            cv2.imwrite(str(output_dirs["rgb-pcd-projection"] / f"rgb-pcd-projection-{idx}.jpg"), rgb_pcd_projection)
+
             # # save segmented sfm pcd
-            segmented_pcd_path = img_dir / "left.ply"
-            segmented_pcd = o3d.t.io.read_point_cloud(str(segmented_pcd_path))
-            o3d.t.io.write_point_cloud(str(output_dirs["segmented-pcd"] / f"segmented-pcd-{idx}.ply"), segmented_pcd)
+            # segmented_pcd_path = img_dir / "left.ply"
+            # segmented_pcd = o3d.t.io.read_point_cloud(str(segmented_pcd_path))
+            # o3d.t.io.write_point_cloud(str(output_dirs["segmented-pcd"] / f"segmented-pcd-{idx}.ply"), segmented_pcd)
             
-            # # generate and save segmentation-masks
-            bev_generator = BEVGenerator(yaml_path="config/Mavis.yaml")
-            seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(
-                        segmented_pcd, 
-                        nx=400, 
-                        nz=400, 
-                        bb={'x_min': -10.0, 'x_max': 10.0, 'z_min': 0, 'z_max': 20}
-                    )
+            # # project segmented-pcd to img
+            # seg_pcd_projection = OccMap.project_pcd_to_img(segmented_pcd,
+            #                                                K = camera_matrix,
+            #                                                img_shape=(1080, 1920),
+            #                                                visualize=False)
+            # cv2.imwrite(str(output_dirs["seg-pcd-projection"] / f"seg-pcd-projection-{idx}.jpg"), seg_pcd_projection)
             
-            bev_dest = output_dirs["bev-pole"] / f"bev-{idx}.png"
-            cv2.imwrite(bev_dest, seg_mask_rgb)
+            # generate pole-bev
+            # bev_generator = BEVGenerator(yaml_path="config/Mavis.yaml")
+            # seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(
+            #             segmented_pcd, 
+            #             nx=400, 
+            #             nz=400, 
+            #             bb={'x_min': -10.0, 'x_max': 10.0, 'z_min': 0, 'z_max': 20}
+            #         )
+            
+            # bev_dest = output_dirs["bev-pole"] / f"bev-{idx}.png"
+            # cv2.imwrite(bev_dest, seg_mask_rgb)
                     
+            # # generate minus navigable-space bev
+            # bev_generator = BEVGenerator(yaml_path="config/Mavis.yaml")
+            # seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(
+            #             segmented_pcd, 
+            #             nx=400, 
+            #             nz=400, 
+            #             bb={'x_min': -10.0, 'x_max': 10.0, 'z_min': 0, 'z_max': 20}
+            #         )
             
+            # bev_dest = output_dirs["bev-minus-navigable"] / f"bev-{idx}.png"
+            # cv2.imwrite(bev_dest, seg_mask_rgb)
+            
+         
+
+
         except Exception as e:
             logger.error(f"Error processing {pcd_files[idx]}: {str(e)}")
             logger.error(traceback.format_exc())
