@@ -75,17 +75,23 @@ class OccMap:
                               K: np.ndarray = None,
                               depth_buffer_shape: Tuple[int, int] = (1080, 1920),
                               logging_level: int = logging.INFO) -> np.ndarray:
-        """Generate depth buffer from projected point cloud coordinates.
-        
+        """Generates a depth buffer by projecting the sfm point cloud onto a 2D image plane.
+
+        This function projects the sfm point cloud onto a 2D image plane using the provided
+        camera intrinsics matrix (K). It then creates a depth buffer where each pixel stores
+        the minimum depth value of the projected points. This buffer is used to determine
+        occlusion by comparing the depth of other points with the values in this buffer.
+
         Args:
-            pcd: Input point cloud
-            img_coords: Nx2 array of projected 2D coordinates
-            img_shape: Tuple of (height, width) for output buffer
-            
+            sfm_pcd: Input sfm point cloud.
+            stereo_pcd: Input stereo point cloud (not used in this function, but kept for consistency).
+            K: 3x3 camera intrinsic matrix.
+            depth_buffer_shape: Tuple of (height, width) for the output depth buffer.
+            logging_level: Logging level for the function.
+
         Returns:
-            np.ndarray: HxW depth buffer containing minimum depth at each pixel
+            np.ndarray: A HxW depth buffer containing the minimum depth at each pixel.
         """
-        
         assert sfm_pcd is not None, "sfm_pcd is required"
         assert K is not None, "K is required"
         assert (depth_buffer_shape == (1080, 1920)), "depth_buffer_shape must be (1080, 1920)"
@@ -911,15 +917,22 @@ class OccMap:
         visible_pcd.point['colors'] = o3c.Tensor(colors[visible_mask])
         visible_pcd.point['label'] = o3c.Tensor(labels[visible_mask])
         
-        # downsample vine_canopy points
-        visible_downsampled = OccMap.downsample_pcd_by_class(visible_pcd, 
-                                                             classes_to_downsample=classes_to_downsample,
-                                                             voxel_size=voxel_size)
+        # # downsample vine_canopy points
+        # visible_downsampled = OccMap.downsample_pcd_by_class(visible_pcd, 
+        #                                                      classes_to_downsample=classes_to_downsample,
+        #                                                      voxel_size=voxel_size)
 
+        # # filter visible points that are near to hidden points
+        # visible_filtered = OccMap.filter_near_points(visible_downsampled, 
+        #                                              hidden_pcd, 
+        #                                              radius=0.01)
+
+       
         # filter visible points that are near to hidden points
-        visible_filtered = OccMap.filter_near_points(visible_downsampled, 
+        visible_filtered = OccMap.filter_near_points(visible_pcd, 
                                                      hidden_pcd, 
                                                      radius=0.01)
+
 
         # visible_downsampled = OccMap.downsample_pcd_by_class(visible_pcd, 
         #                                                           voxel_size=0.01)
@@ -944,7 +957,7 @@ class OccMap:
 
         logger.info(f"===========================")
         logger.info(f"STEREO OCC-MASK GENERATION:")
-        logger.info(f"- total points: {len(positions)}")
+        logger.info(f"- total points: {total_points}")
         logger.info(f"- hidden points: {new_hidden_mask.sum()}")
         logger.info(f"- bound points: {new_bound_mask.sum()}")
         logger.info(f"- % hidden: {100 * new_hidden_mask.sum() / total_points:.2f}%")
