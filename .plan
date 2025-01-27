@@ -128,7 +128,6 @@ fix bev-mask-generator
 * normalize plane normal --> [a,b,c,d]
 * BEV projection was shifted along y. 
 + [debug] project pointcloud to camera to check camera extrinsics
-- fix label merging strategy in pcd_to_seg_mask_mono
 * fix compute_tilt_matrix --> align with x and z-axis as well  
 * need to align two axes instead of one
 * [debug] align x and z, and y should automatically align
@@ -141,7 +140,6 @@ fix bev-mask-generator
 + fix BEV GT seg-masks
 - do we need to add real camera extrinsics? 
 - camera instrinsics scaling with image resizing -> [https://chatgpt.com/share/67582768-d0c4-8009-a9b3-edf805c2d2f3]
-- z-indices out-of-bounds error while bev_pcd -> bev_png 
 * check if dz is constant across subsequent frames
 + why is z becoming more negative across frames?
 + check if GT-seg-masks being passed to sbevnet is flipped? 
@@ -151,11 +149,9 @@ fix bev-mask-generator
 + verify RJM vinerow width 
 + check RJM / gallo width across multiple svo frames
 - filter out GT-seg-masks with z-min > 0
-- check occ-mask coverage
-+ start occ mask pipeline
++ check occ-mask coverage
 + start camera-ext pipeline
 + fix tmp files in data-generator-s3
-- fill void with grounds
 + update check index logic in data-generato r-s3
 - add occlusion map generation in debug.py
 + add dedicated leaf-folder-cnt bash script
@@ -187,7 +183,7 @@ fix bev-mask-generator
 + fix multiple tilt-rectification in bev_generator
 - why are there no obstacles in seg-mask-mono if 63 are present in downsampled_pcd?
 - why does seg-mask-mono have label 255? 
-- check if camera / pointcloud is tilted in the colmap viewer
++ check if camera / pointcloud is tilted in the colmap viewer
 + compare rectified and non-rectified pcd in the colmap viewer
 * create unknown class with priority 99
 - start bev-mask-generator-DAIRY pipeline 
@@ -205,13 +201,11 @@ fix bev-mask-generator
 + bev_to_seg_mask_mono --> bev_pcd_to_seg_mask_mono
 + label calculation in wrong in bev_to_seg_mask_mono
 + assign highest-priority to occ-mask
-- check occ-mask integration in sbevnet
 - pass unequal x and z-ranges
 - increase z and decrease x
 - change the color space for data augmenatation
 - reprojection error 
 - use data-augmentation to increase frame-cnt in sbevnet
-- fill ground points in GT-seg-masks
 - support for rectangular seg-masks
 - shouldn't the seg-mask be straight even if the camera is tilted? 
 - data augmentation
@@ -220,12 +214,10 @@ fix bev-mask-generator
 - update bb value to get rid of out of view points
 - still getting intermittent z-out of bounds error while generating bev-masks
 - shouldn't the seg-mask be straight even if the camera is tilted? 
-- remove invalid points (project to [1080 * 1920] image) before generating bev-mask
++ remove invalid points (project to [1080 * 1920] image) before generating bev-mask
 - don't downsample navigable / canopy
 - does removing the pcd_navigable / canopy downsampling reduce the black patches in seg-mask?
 - add 6 * 6 maps instead of 5 * 5
-- what should be the resolution of the bev-seg-masks?
-- start frame augmentation pipeline
 - refactor bev_mask_generator to add @staticmethods
 - rename bev_mask_generator_dairy, bev_mask_generator_vineyards
 - refactoring [scripts, .gitkeep, bash]
@@ -233,14 +225,12 @@ fix bev-mask-generator
 + fix slanting of pole lines \ uneven vine pole horizontal separation
 - fix camera extrinsics calculations
 + review tilt correction --> axis angles calculations 
-- start occlusion map pipeline
 + tighten compute_tilt_matrix threshold
 * log global success rate for compute_tilt_matrix
 * add comments for all the functions
 - use repomix with o1 / gemini-1206 / sonnet 3.5
 - verify number of frames in z[0-5] with z[2-7]
 + clean up compute_tilt_matrix
-- check z-min for each GT-seg-masks [for void space calculations]
 * verify case ground plane normal alignment with -ve y-axis case
 + improve ground plane alignment with cam y-axis\
 + horizontal tilt / swaying could be because of seg-mask generation bug
@@ -270,8 +260,8 @@ fix occ-mask-generator
 + check K using zed-sdk
 + tabulate metrics for all the frames in a leaf-folder
 + add occ-pcd to occ-mask coversion
-- would be a good idea to change bev-mask-bounds --> [z_min: 1.5m]
-- project unrectified pcd to check for the z < 1.5 m issue 
++ would be a good idea to change bev-mask-bounds --> [z_min: 1.5m]
++ project unrectified pcd to check for the z < 1.5 m issue 
 - establish occ-map correspondance with pointcloud-to-image projection with z_min = 0
 - check effect of passing cam-extrinsics
 - verify cam-extrinsics calculation is correct
@@ -288,8 +278,8 @@ fix occ-mask-generator
 + visualize the disparity map
 + tune max_disp? 
 + fix column issue in disp_map
-- [why] are the closest vine poles always getting occluded? 
-- [why] everything with z < 1.5m is being marked as occluded (becuase of tractorhood)?
++ [why] are the closest vine poles always getting occluded? 
++ [why] everything with z < 1.5m is being marked as occluded (becuase of tractorhood)?
 - fix ground plane tilt
 + stereo-pcd angles are wrong
 - need to P to occ_pcd / stereo_occ_pcd calculations?
@@ -308,7 +298,29 @@ fix occ-mask-generator
 + add selective downsampling
 + refactor get_stereo_occ_pcd
 
-
-- carefully pass P to the occ-mask
 - write test to verify
++ downsample after running occlusion-code
++ do we need to downsample in get_stereo_pcd_occ?
 
+======================
+occ-mask pipeline
+======================
+- start occ mask pipeline
+- carefully pass P to the occ-mask
+- compare stereo-occ-pcd vs rectified-stereo-occ-pcd
+- verify z-min empirically
+- use rectified pcd to verify z-min
+- undo get grid one
+- is z = 1.5m good?
+- don't use frames at the end for training
+- don't generate train-data for frames at the end
+- start data-augmentation pipeline
+- fix label merging strategy in pcd_to_seg_mask_mono [before / after occlusion]
+- z-indices out-of-bounds error while bev_pcd -> bev_png 
+- fill void with grounds
+- check occ-mask integration in sbevnet
+- fill ground points in GT-seg-masks
+- what should be the resolution of the bev-seg-masks?
+- empirically establish how far ahead should we look
+- train only on RJM
+- vectorize generate_depth_buffer
