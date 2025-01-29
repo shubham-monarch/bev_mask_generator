@@ -408,8 +408,7 @@ class DataGeneratorS3:
 
 if __name__ == "__main__":
     PCD_URIs = [
-        "s3://occupancy-dataset/occ-dataset/vineyards/gallo/",
-        "s3://occupancy-dataset/occ-dataset/vineyards/RJM/"
+        "s3://occupancy-dataset/occ-dataset/dairy/",
     ]
 
     
@@ -417,19 +416,17 @@ if __name__ == "__main__":
     logger = get_logger("data-generator-s3")
     
     # x is horizontal, z is depth
-    crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5.0}
-    
-    # mavis.yaml
-    color_map = "config/Mavis.yaml"
+    crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 1.5, 'z_max': 6.5}
+    color_map = "config/dairy.yaml"
     
     # segmentation mask dimensions
     nx_, nz_ = 256, 256
     
     # json_path = "index-s3/bev-dataset-2-to-7.json"
-    json_path = "index-s3/bev-05-cam-extrinsics.json"
+    json_path = "index-s3/dairy.json"
 
     data_generator_s3 = DataGeneratorS3(src_URIs=PCD_URIs, 
-                                        dest_folder="bev-05-cam-extrinsics",
+                                        dest_folder="bev-dairy",
                                         index_json=json_path, 
                                         color_map=color_map,
                                         crop_bb=crop_bb,
