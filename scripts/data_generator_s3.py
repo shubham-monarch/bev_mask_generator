@@ -12,7 +12,8 @@ import json
 import logging
 
 from scripts.logger import get_logger
-from scripts.vineyards_mask_generator import BEVGenerator
+# from scripts.vineyards_mask_generator import BEVGenerator
+from scripts.dairy_mask_generator import BEVGenerator
 
 
 class JSONIndex:
@@ -100,7 +101,7 @@ class LeafFolder:
         self.s3 = boto3.client('s3')    
         self.tmp_folder = "tmp-files"
         self.INDEX = JSONIndex(index_json)
-        self.bev_generator = BEVGenerator()
+        self.bev_generator = BEVGenerator(yaml_path=self.color_map)
         
 
     def upload_file(self, src_path: str, dest_URI: str) -> bool:
@@ -203,8 +204,7 @@ class LeafFolder:
         
         seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
                                                                         nx=self.nx, nz=self.nz,
-                                                                        bb=self.crop_bb,
-                                                                        yaml_path=self.color_map)
+                                                                        bb=self.crop_bb)
 
         # ==================
         # 3. upload mono / RGB segmentation masks
