@@ -260,7 +260,7 @@ class LeafFolder:
         self.logger.info(f"[STEP #5]: uploading camera extrinsics...")
         self.logger.info(f"=======================\n")
 
-        cam_extrinsics = self.bev_generator.get_updated_camera_extrinsics(pcd)
+        cam_extrinsics = self.bev_generator.get_updated_camera_extrinsics()
         
         # save to tmp-folder
         cam_extrinsics_path = os.path.join(self.tmp_folder, "cam-extrinsics.npy")
