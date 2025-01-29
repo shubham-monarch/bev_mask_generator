@@ -8,7 +8,6 @@ import numpy as np
 import cv2
 import os
 import fnmatch
-import torch
 import logging
 import sys
 import coloredlogs
