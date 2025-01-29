@@ -175,7 +175,7 @@ class BEVGenerator:
         
         self.yaml_path = yaml_path
         self.LABELS = self.update_labels_from_yaml(yaml_path, priority_mapping)
-        self.log_label_info()
+        # self.log_label_info()
         
         # tilt-correction matrix
         self.R = None

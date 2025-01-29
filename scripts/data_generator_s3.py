@@ -180,6 +180,10 @@ class LeafFolder:
             self.logger.error(f"=======================\n")
             return
 
+        self.logger.warning("───────────────────────────────")
+        self.logger.warning(f"Processing folder {self.src_URI}")
+        self.logger.warning("───────────────────────────────")
+
         # ==================
         # 1. download left-segmented-labelled.ply
         # ==================
@@ -416,7 +420,7 @@ if __name__ == "__main__":
     logger = get_logger("data-generator-s3")
     
     # x is horizontal, z is depth
-    crop_bb = {'x_min': -2.5, 'x_max': 2.5, 'z_min': 1.5, 'z_max': 6.5}
+    crop_bb = {'x_min': -1.2, 'x_max': 3.8, 'z_min': 1.5, 'z_max': 6.5}
     color_map = "config/dairy.yaml"
     
     # segmentation mask dimensions
