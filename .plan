@@ -322,5 +322,15 @@ occ-mask pipeline
 - fill ground points in GT-seg-masks
 - what should be the resolution of the bev-seg-masks?
 - empirically establish how far ahead should we look
-- train only on RJM
+- train only on RJM- check label collapsing overlap for dairy dataset
+
+
 - vectorize generate_depth_buffer
+- vectorize label-collapsing step 
+- establish x_min / x_max / z-min / z_max for dairy seg-masks
+- generate dairy data without occ-map
+- check label distribution for dairy
+- check downsampling strategy for dairy
+
+- manually clean escalon 
+- remove samples with label-0% > 30
