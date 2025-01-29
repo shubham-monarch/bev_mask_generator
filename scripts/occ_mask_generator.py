@@ -10,7 +10,6 @@ import logging
 import cv2
 from typing import Dict, Tuple, Union, List
 import matplotlib.pyplot as plt
-import torch
 import traceback
 
 from scripts.logger import get_logger

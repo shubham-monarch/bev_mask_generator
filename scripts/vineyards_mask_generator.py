@@ -6,7 +6,6 @@ import numpy as np
 import open3d.core as o3c
 from scipy.spatial import cKDTree
 from typing import List, Tuple, Optional, Dict, Union
-import torch
 import yaml
 
 from scripts.helpers import crop_pcd, mono_to_rgb_mask
