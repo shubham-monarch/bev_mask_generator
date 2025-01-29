@@ -13,8 +13,8 @@ color_map: "config/dairy.yaml"
 
 # crop bounding box (x is horizontal, z is depth)
 crop_bb:
-  x_min: -1.2
-  x_max: 3.8
+  x_min: -2.0
+  x_max: 3.0
   z_min: 1.5
   z_max: 6.5
 

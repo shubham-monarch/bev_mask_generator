@@ -11,6 +11,7 @@ import cv2
 import json
 import logging
 import yaml
+import argparse
 
 from scripts.logger import get_logger
 # from scripts.vineyards_mask_generator import BEVGenerator
@@ -404,9 +405,16 @@ class DataGeneratorS3:
 
 
 if __name__ == "__main__":
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Generate BEV dataset from S3')
+    parser.add_argument('--config_path', type=str, nargs='?',
+                       help='Path to YAML config file')
+    
+    args = parser.parse_args()
+    
     logger = get_logger("data-generator-s3")
     
-    data_generator_s3 = DataGeneratorS3("config/data_generator_config.yaml")
+    data_generator_s3 = DataGeneratorS3(config_path=args.config_path)
     data_generator_s3.generate_bev_dataset()
     
     # =================

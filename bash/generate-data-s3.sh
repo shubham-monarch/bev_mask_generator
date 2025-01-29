@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Default config path
-CONFIG_PATH="config/data_generator_config.yaml"
+CONFIG_PATH="config/data-generator-s3.yaml"
 
 # Allow overriding config path via command line argument
 if [ $# -eq 1 ]; then
@@ -14,4 +14,4 @@ if [ ! -f "$CONFIG_PATH" ]; then
     exit 1
 fi
 
-python3 -m scripts.data_generator_s3 "$CONFIG_PATH"
+python3 -m scripts.data_generator_s3 --config_path="$CONFIG_PATH"
