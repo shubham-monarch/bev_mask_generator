@@ -1,0 +1,23 @@
+# s3 source URIs
+src_URIs:
+  - "s3://occupancy-dataset/occ-dataset/dairy/"
+
+# s3 destination folder
+dest_folder: "bev-dairy"
+
+# json index path
+index_json: "index-s3/dairy.json"
+
+# color map config
+color_map: "config/dairy.yaml"
+
+# crop bounding box (x is horizontal, z is depth)
+crop_bb:
+  x_min: -1.2
+  x_max: 3.8
+  z_min: 1.5
+  z_max: 6.5
+
+# segmentation mask dimensions
+nx: 256
+nz: 256 

@@ -10,6 +10,7 @@ import numpy as np
 import cv2
 import json
 import logging
+import yaml
 
 from scripts.logger import get_logger
 # from scripts.vineyards_mask_generator import BEVGenerator
@@ -282,41 +283,33 @@ class LeafFolder:
         
 
 class DataGeneratorS3:
-    def __init__(self, src_URIs: List[str] = None, 
-                 dest_folder: str = None, 
-                 index_json: str = None,
-                 color_map: str = None,
-                 crop_bb: dict = None,
-                 nx: int = None,
-                 nz: int = None):    
-
-        assert index_json is not None, "index_json is required!"
-        assert color_map is not None, "color_map is required!"
-        assert crop_bb is not None, "crop_bb is required!"
-        assert nx is not None, "nx is required!"
-        assert nz is not None, "nz is required!"
-
+    def __init__(self, config_path: str):
+        """Initialize DataGeneratorS3 from a config file
+        
+        Args:
+            config_path: Path to YAML config file containing parameters
+        """
         self.logger = get_logger("data-generator-s3")
         
-        self.src_URIs = src_URIs
+        # Load config
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+            
+        # Validate required parameters
+        required_params = ['src_URIs', 'dest_folder', 'index_json', 
+                         'color_map', 'crop_bb', 'nx', 'nz']
+        for param in required_params:
+            assert param in config, f"{param} is required in config!"
         
-        # s3 destination folder
-        self.dest_folder = dest_folder
+        # Set instance variables from config
+        self.src_URIs = config['src_URIs']
+        self.dest_folder = config['dest_folder']
+        self.color_map = config['color_map']
+        self.index_json = config['index_json']
+        self.crop_bb = config['crop_bb']
+        self.nx = config['nx']
+        self.nz = config['nz']
 
-        # mavis.yaml
-        self.color_map = color_map
-        
-        # index.json
-        self.index_json = index_json
-        
-        # crop bounding box
-        self.crop_bb = crop_bb
-        
-        # segmentation mask dimensions
-        self.nx = nx
-        self.nz = nz
-        
-        
     def generate_target_URI(self, src_uri: str, dest_folder:str = None):
         ''' Make leaf-folder path relative to the bev-dataset folder '''
         
@@ -411,31 +404,9 @@ class DataGeneratorS3:
 
 
 if __name__ == "__main__":
-    PCD_URIs = [
-        "s3://occupancy-dataset/occ-dataset/dairy/",
-    ]
-
-    
-
     logger = get_logger("data-generator-s3")
     
-    # x is horizontal, z is depth
-    crop_bb = {'x_min': -1.2, 'x_max': 3.8, 'z_min': 1.5, 'z_max': 6.5}
-    color_map = "config/dairy.yaml"
-    
-    # segmentation mask dimensions
-    nx_, nz_ = 256, 256
-    
-    # json_path = "index-s3/bev-dataset-2-to-7.json"
-    json_path = "index-s3/dairy.json"
-
-    data_generator_s3 = DataGeneratorS3(src_URIs=PCD_URIs, 
-                                        dest_folder="bev-dairy",
-                                        index_json=json_path, 
-                                        color_map=color_map,
-                                        crop_bb=crop_bb,
-                                        nx=nx_, nz=nz_)
-    
+    data_generator_s3 = DataGeneratorS3("config/data_generator_config.yaml")
     data_generator_s3.generate_bev_dataset()
     
     # =================
