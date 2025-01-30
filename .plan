@@ -66,35 +66,6 @@ generate additional data
 - ipm rgb
 - ipm fea
 
-
-======================
-sbevnet 
-======================
-- check sbevnet utils
-- EvalClass 
-- integrate eval cases
-- metrics ?
-- train / eval / test split
-- processing bev-aws to bev-model pipeline
-- utility to classify dataset into [object / pole / vineyard ] heavy
-+ add as submodule to stereo-occ
-- train one class at a time
-- warm-up + cool-down 
-- pytorch lightening
-- pytorch fabric
-- check occ-mask integration in sbevnet
-- data augmentation
-- undo tilt correction in sbevnet_get_grid_one
-- fix / review disparity scaling in sbevnet
-- fix / review / improve image pre-processing step 
-- [debug] sbvenet with only [canopy + navigable-space] as output
-- stereo rectification 
-- handle image resizing effect on disparity
-- z / y swap
-- transpose effect
-- review disparity scaling
-
-
 ======================
 fix bev-mask-generator
 ======================
@@ -324,7 +295,6 @@ occ-mask pipeline
 - empirically establish how far ahead should we look
 - train only on RJM- check label collapsing overlap for dairy dataset
 
-
 - vectorize generate_depth_buffer
 - vectorize label-collapsing step 
 - establish x_min / x_max / z-min / z_max for dairy seg-masks
@@ -332,5 +302,40 @@ occ-mask pipeline
 - check label distribution for dairy
 - check downsampling strategy for dairy
 
+======================
+sbevnet 
+======================
+- check sbevnet utils
+- EvalClass 
+- integrate eval cases
+- metrics ?
+- train / eval / test split
+- processing bev-aws to bev-model pipeline
+- utility to classify dataset into [object / pole / vineyard ] heavy
++ add as submodule to stereo-occ
+- train one class at a time
+- warm-up + cool-down 
+- pytorch lightening
+- pytorch fabric
+- check occ-mask integration in sbevnet
+- data augmentation
+- undo tilt correction in sbevnet_get_grid_one
+- fix / review disparity scaling in sbevnet
+- fix / review / improve image pre-processing step 
+- [debug] sbvenet with only [canopy + navigable-space] as output
+- stereo rectification 
+- handle image resizing effect on disparity
+- z / y swap
+- transpose effect
+- review disparity scaling
+
+
+
 - manually clean escalon 
 - remove samples with label-0% > 30
+- explore data-augmentation 
+- explore get_grid_one, p_warping [see chino-valley screenshot]
+- train / validate on one farm at a time 
+- verify train-validation integration strategy
+- explore transformers
+- explore replacing architecture components with transformers
