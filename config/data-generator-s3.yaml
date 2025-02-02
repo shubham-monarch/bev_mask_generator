@@ -3,10 +3,10 @@ src_URIs:
   - "s3://occupancy-dataset/occ-dataset/dairy/"
 
 # s3 destination folder
-dest_folder: "bev-dairy"
+dest_folder: "bev-dairy-more-navigable"
 
 # json index path
-index_json: "index-s3/dairy.json"
+index_json: "index-s3/dairy-more-navigable.json"
 
 # color map config
 color_map: "config/dairy.yaml"
