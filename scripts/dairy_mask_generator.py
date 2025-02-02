@@ -426,7 +426,7 @@ class BEVGenerator:
         
         # using only ground-inliers
         pcd_NAVIGABLE: o3d.t.geometry.PointCloud = self.get_class_pointcloud(pcd_RECTIFIED, self.LABELS["NAVIGABLE_SPACE"]["id"])
-        pcd_NAVIGABLE = pcd_NAVIGABLE.select_by_index(self.ground_inliers)
+        # pcd_NAVIGABLE = pcd_NAVIGABLE.select_by_index(self.ground_inliers)
 
         
         
