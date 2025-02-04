@@ -12,6 +12,7 @@ import open3d as o3d
 import yaml
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import inspect
 
 from scripts.logger import get_logger
 from scripts.dairy_mask_generator import BEVGenerator
@@ -844,3 +845,40 @@ def test_bev_generation():
                     except Exception as e:
                         logger.error(f"Error processing {file_path}: {e}")
                     pbar.update(1)
+
+
+def show_help() -> None:
+    """
+    Displays a list of all available functions in this module along with their signatures.
+    """
+    functions = []
+    # Iterate over global items and select functions that belong to this module.
+    for name, obj in globals().items():
+        if inspect.isfunction(obj) and obj.__module__ == __name__:
+            functions.append((name, obj))
+    functions.sort(key=lambda x: x[0])
+    
+    help_lines = ["Available functions:"]
+    for name, func in functions:
+        signature = str(inspect.signature(func))
+        help_lines.append(f"{name}{signature}")
+        # Optionally include the first line of the docstring.
+        doc = inspect.getdoc(func)
+        if doc:
+            help_lines.append(f"    {doc.splitlines()[0]}")
+    
+    help_message = "\n".join(help_lines)
+    print(help_message)
+
+
+def main():
+    """
+    Main function to expose all module functions via the Fire CLI.
+    """
+    import sys
+    import fire
+    fire.Fire(sys.modules[__name__])
+
+
+if __name__ == "__main__":
+    main()
