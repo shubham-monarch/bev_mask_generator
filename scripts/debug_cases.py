@@ -18,124 +18,48 @@ from scripts.logger import get_logger
 from scripts.dairy_mask_generator import BEVGenerator
 from scripts.data_generator_s3 import DataGeneratorS3, LeafFolder
 from scripts.occ_mask_generator import OccMap
-# from scripts.helpers import get_zed_camera_params, cam_extrinsics, read_images_binary
-
+from scripts.helpers import download_s3_folder
+from scripts.dairy_mask_generator import RotationUtils
 
 logger = get_logger("debug_cases")
 
 
-def test_dairy_masks():
-    """Case 9: Test dairy mask generation"""
-    
-    pcd_dir = Path("debug/frames-11")
-    output_dir = Path("debug/11")
-    output_dirs = {     
-        "left_img": output_dir / "left-imgs",
-        "right_img": output_dir / "right-imgs",
-        
-        "sfm-pcd": output_dir / "sfm-pcd",
-        "bev-pcd": output_dir / "bev-pcd",
-        
-        "seg-masks-rgb": output_dir / "seg-masks-rgb",
-        "seg-masks-mono": output_dir / "seg-masks-mono",
-
-        "labelled-pcd": output_dir / "labelled-pcd"
-        
-    }
-
-    # output_dirs should be empty
-    for dir_path in output_dirs.values():
-        if dir_path.exists():
-            assert not any(dir_path.iterdir()), f"Output directory {dir_path} is not empty."
 
 
-    for dir_path in output_dirs.values():
-        dir_path.mkdir(parents=True, exist_ok=True)
+def test_gt_seg_masks():
+    """Case 12: Test gt seg masks generation"""
     
-    # find all pcd files
-    pcd_files = []
-    for root, _, files in os.walk(pcd_dir):
-        for file in files:
-            if file == "left-segmented-labelled.ply":
-                pcd_files.append(Path(root) / file)
     
-    pcd_files.sort()
+    s3_URI = "s3://occupancy-dataset/occ-dataset/dairy/chino_valley/2024_02_13/front/front_2024-02-13-10-23-53.svo/1810_to_1952"
     
-    # camera parameters
-    camera_matrix = np.array([[1090.536, 0, 954.99],
-                            [0, 1090.536, 523.12],
-                            [0, 0, 1]], dtype=np.float32)
-    
+    folder_id="150"
+    pcd_dir = Path("debug", f"frames-{folder_id}")
+    output_dir = Path("debug", folder_id)
 
-    # index_list = [0, 1, 2, 6, 7, 12, 13]
-    # index_list = [6,7,12,13]
-    # index_list = [5,6,7]
-    index_list = [0,1,2,3,4,5,6,7,8,9,10,11,12,13]
+    shutil.rmtree(output_dir, ignore_errors=True)
+    shutil.rmtree(pcd_dir, ignore_errors=True)
     
-    # process each pcd file
-    for idx in tqdm(index_list, desc="Processing point clouds"):
-        try:
-            pcd_path = pcd_files[idx]
-            
-            logger.warning("───────────────────────────────")
-            logger.warning(f"IDX: {idx}")
-            logger.warning("───────────────────────────────")
-            
-           
-            # save segmented-sfm point cloud
-            sfm_pcd = o3d.t.io.read_point_cloud(str(pcd_path))
-            o3d.t.io.write_point_cloud(str(output_dirs["sfm-pcd"] / f"sfm-pcd-{idx}.ply"), sfm_pcd)
-                        
-            # Generate and save individual class point clouds
-             # read labels from yaml file
-            with open(f"config/dairy.yaml", 'r') as file:
-                dairy_config = yaml.safe_load(file)
-            
-            # get labels from yaml config
-            labels = sorted(dairy_config['labels'].keys())
-            labels.append(0)
-            
-            for label_id in labels:
-                mask = sfm_pcd.point["label"] == label_id
-                pcd_class = sfm_pcd.select_by_index(mask.nonzero()[0])
-                output_path = output_dirs["labelled-pcd"] / f"sfm-pcd-{idx}-{label_id}.ply"
-                o3d.t.io.write_point_cloud(str(output_path), pcd_class)
-            
-
-        except Exception as e:
-            logger.error(f"Error processing {pcd_files[idx]}: {str(e)}")
-            logger.error(traceback.format_exc())
-
-def test_stereo_pcd_occ():
-    """Case 12: Test stereo point cloud occlusion map generation"""
-    
-    pcd_dir = Path("debug/frames-4")
-    output_dir = Path("debug/4")
     output_dirs = { 
         "left_img": output_dir / "left-imgs",
         "right_img": output_dir / "right-imgs",
         
-        "stereo_pcd": output_dir / "stereo-pcd",
         "sfm_pcd": output_dir / "sfm-pcd",
-        
-        "stereo_occ_pcd": output_dir / "stereo-occ-pcd",
-        "sfm_occ_pcd": output_dir / "sfm-occ-pcd",
-        # "combined_pcd": output_dir / "combined-pcd",
-        
-        "stereo_img": output_dir / "stereo-img",
-        "sfm_img": output_dir / "sfm-img",
         
         "seg_masks_rgb": output_dir / "seg-masks-rgb",
         "seg_masks_mono": output_dir / "seg-masks-mono",
         
-        "rectified_stereo_occ_pcd": output_dir / "rectified-stereo-occ-pcd",
-        
-        "rectified_stereo_pcd": output_dir / "rectified-stereo-pcd",
         "rectified_sfm_pcd": output_dir / "rectified-sfm-pcd", 
 
-        "combined_rectified_pcd": output_dir / "combined-rectified-pcd",
-        "combined_pcd": output_dir / "combined-pcd"
+        "labelled-pcd": output_dir / "labelled-pcd"
     }
+
+    # download s3 folder
+    if not pcd_dir.exists():
+        download_s3_folder(s3_URI, pcd_dir)
+    else:
+        logger.warning("───────────────────────────────")
+        logger.warning(f"PCD directory {pcd_dir} already exists.")
+        logger.warning("───────────────────────────────")
 
     # output_dirs should be empty
     for dir_path in output_dirs.values():
@@ -163,8 +87,8 @@ def test_stereo_pcd_occ():
 
     # index_list = [0, 1, 2, 6, 7, 12, 13]
     # index_list = [6,7,12,13]
-    index_list = [5,6,7]
-    # index_list = [0]
+    # index_list = [0,1,2,3,4,5,6,7,8,9,10,11,12,13]
+    index_list = [0]
     
     # process each pcd file
     for idx in tqdm(index_list, desc="Processing point clouds"):
@@ -196,10 +120,10 @@ def test_stereo_pcd_occ():
             
             
             # generate seg-bev masks
-            bev_generator = BEVGenerator(logging_level=logging.WARNING, yaml_path="config/dairy.yaml")
+            bev_generator = BEVGenerator(logging_level=logging.INFO, yaml_path="config/dairy.yaml")
             seg_mask_mono, seg_mask_rgb = bev_generator.pcd_to_seg_mask(
                 sfm_pcd, nx=256, nz=256,
-                bb={'x_min': -2.5, 'x_max': 2.5, 'z_min': 2.0, 'z_max': 7.0}
+                bb={'x_min': -2.0, 'x_max': 3.0, 'z_min': 2.0, 'z_max': 7.0}
             )
 
             cv2.imwrite(str(output_dirs["seg_masks_rgb"] / f"seg-mask-rgb-{idx}.png"), seg_mask_rgb)
@@ -210,168 +134,38 @@ def test_stereo_pcd_occ():
             # cam_extrinsics = cam_extrinsics[:3, :3]
             # cam_extrinsics_inv = np.linalg.inv(cam_extrinsics)
             
+            # ypr_representation = RotationUtils.rotation_matrix_to_ypr(cam_extrinsics_inv)
+            # axis_angles_representation = RotationUtils.rotation_matrix_to_axis_angles(cam_extrinsics_inv)
+            
+            # logger.warning("───────────────────────────────")
+            # logger.warning(f"YPR: {ypr_representation}")
+            # logger.warning(f"Axis Angles: {axis_angles_representation}")
+            # logger.warning("───────────────────────────────")
 
-            # save rectified-sfm point cloud
+            # # save rectified-sfm point cloud
             # sfm_pcd_rectified = sfm_pcd.clone()
             # sfm_pcd_rectified.rotate(cam_extrinsics_inv, center=(0, 0, 0))
             # o3d.t.io.write_point_cloud(str(output_dirs["rectified_sfm_pcd"] / f"rectified-sfm-pcd-{idx}.ply"), sfm_pcd_rectified)
 
-            # logger.warning(f"───────────────────────────────")
-            # logger.warning(f"len(sfm_pcd): {len(sfm_pcd.point['positions'].numpy())}")
-            # logger.warning(f"len(sfm_pcd_rectified): {len(sfm_pcd_rectified.point['positions'].numpy())}")
-            # logger.warning(f"───────────────────────────────\n")
+            # save rectified-sfm point cloud
+            sfm_pcd_rectified = bev_generator.get_tilt_rectified_pcd(sfm_pcd)
+            o3d.t.io.write_point_cloud(str(output_dirs["rectified_sfm_pcd"] / f"rectified-sfm-pcd-{idx}.ply"), sfm_pcd_rectified)
             
-            # fill nan with 0
-            # stereo_pcd_0 = OccMap.get_stereo_pcd(left_img, right_img,
-            #                                   K=camera_matrix,
-            #                                   baseline=0.12,
-            #                                   fill_nan_value=0)
-
-            # stereo_pcd_0 = OccMap.get_stereo_pcd(left_img, right_img,
-            #                                   K=camera_matrix,
-            #                                   baseline=0.12,
-            #                                   fill_nan_value=1)
-
-
-            # # fill nan with 120
-            # stereo_pcd_120 = OccMap.get_stereo_pcd(left_img, right_img,
-            #                                   K=camera_matrix,
-            #                                   baseline=0.12,
-            #                                   fill_nan_value=120)
-
-
-
-            # o3d.t.io.write_point_cloud(str(output_dirs["stereo_pcd"] / f"stereo-pcd-{idx}.ply"), stereo_pcd_0)
+            # Generate and save individual class point clouds
+            # read labels from yaml file
+            with open(f"config/dairy.yaml", 'r') as file:
+                dairy_config = yaml.safe_load(file)
             
-            # # combine pcds
-            # combined_pcd = OccMap.combine_pcds([stereo_pcd_0, sfm_pcd])
-            # o3d.t.io.write_point_cloud(str(output_dirs["combined_pcd"] / f"combined-pcd-{idx}.ply"), combined_pcd)
-
-
-            # rectified stereo pcd
-            # stereo_pcd_rectified = stereo_pcd_0.clone()
-            # stereo_pcd_rectified.rotate(cam_extrinsics_inv, center=(0, 0, 0))
-            # o3d.t.io.write_point_cloud(str(output_dirs["rectified_stereo_pcd"] / f"rectified-stereo-pcd-{idx}.ply"), stereo_pcd_rectified)
-
-            # logger.warning(f"───────────────────────────────")
-            # logger.warning(f"len(stereo_pcd_rectified): {len(stereo_pcd_rectified.point['positions'].numpy())}")
-            # logger.warning(f"len(stereo_pcd_0): {len(stereo_pcd_0.point['positions'].numpy())}")
-            # logger.warning(f"len(stereo_pcd_120): {len(stereo_pcd_120.point['positions'].numpy())}")
-            # logger.warning(f"───────────────────────────────\n")
-
-
-            # # combined rectified pcds
-            # combined_rectified_pcd = OccMap.combine_pcds([stereo_pcd_rectified, sfm_pcd_rectified])
-            # o3d.t.io.write_point_cloud(str(output_dirs["combined_rectified_pcd"] / f"combined-rectified-pcd-{idx}.ply"), combined_rectified_pcd)
-
-
-            # # save stereo / sfm pcd projections
-            # stereo_img_0 = OccMap.project_pcd_to_img(stereo_pcd_0,
-            #                            K=camera_matrix,
-            #                            img_shape = (1080, 1920),
-            #                            visualize=False)
+            # get labels from yaml config
+            labels = sorted(dairy_config['labels'].keys())
+            labels.append(0)
             
-            # sfm_img = OccMap.project_pcd_to_img(sfm_pcd,
-            #                            K=camera_matrix,
-            #                            img_shape = (1080, 1920),
-            #                            visualize=False)
+            for label_id in labels:
+                mask = sfm_pcd.point["label"] == label_id
+                pcd_class = sfm_pcd.select_by_index(mask.nonzero()[0])
+                output_path = output_dirs["labelled-pcd"] / f"sfm-pcd-{idx}-{label_id}.ply"
+                o3d.t.io.write_point_cloud(str(output_path), pcd_class)
             
-            # cv2.imwrite(str(output_dirs["stereo_img"] / f"stereo-img-{idx}.jpg"), stereo_img_0)
-            # cv2.imwrite(str(output_dirs["sfm_img"] / f"sfm-img-{idx}.jpg"), sfm_img)
-
-            
-
-            # # generate and save sfm_occ-pcd
-            # # WITH CROP
-            # sfm_occ_pcd = OccMap.get_sfm_occ_pcd(
-            #     sfm_pcd,
-            #     # sfm_pcd_downsampled,
-            #     K = camera_matrix, 
-            #     to_crop=True,
-            #     # bb={'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5},
-            #     bb={'x_min': -2.5, 'x_max': 2.5, 'z_min': 2.0, 'z_max': 7.0},
-            #     img_shape=(1080, 1920))
-            
-            # NO CROP
-            # sfm_occ_pcd = OccMap.get_sfm_occ_pcd(
-            #     sfm_pcd,
-            #     K = camera_matrix, 
-            #     to_crop=False,
-            #     # bb={'x_min': -2.49, 'x_max': 2.49, 'z_min': 0.02, 'z_max': 5},
-            #     img_shape=(1080, 1920))
-            
-            # o3d.t.io.write_point_cloud(
-            #     str(output_dirs["sfm_occ_pcd"] / f"sfm-occ-pcd-{idx}.ply"),
-            #     sfm_occ_pcd)
-            
-            # logger.info(f"───────────────────────────────")
-            # logger.info(f"Generating stereo_occ_pcd map for {idx}")
-            # logger.info(f"───────────────────────────────")
-
-            # # stereo_occ_pcd
-            # P1 = np.hstack([np.eye(3), np.zeros((3,1))])
-            # stereo_occ_pcd = OccMap.get_stereo_occ_pcd(
-            #     sfm_pcd=sfm_pcd,
-            #     # sfm_pcd=sfm_pcd_downsampled,
-            #     stereo_pcd=stereo_pcd_120,
-            #     K=camera_matrix,
-            #     P=P1,
-            #     to_crop=False,
-            #     bb={'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 5.0},
-            #     img_shape=(1080, 1920)
-            # )
-            
-            # o3d.t.io.write_point_cloud(
-            #     str(output_dirs["stereo_occ_pcd"] / f"stereo-occ-pcd-{idx}.ply"),
-            #     stereo_occ_pcd
-            # )
-
-            # logger.info(f"───────────────────────────────")
-            # logger.info(f"Generating rectified stereo_occ_pcd map for {idx}")
-            # logger.info(f"───────────────────────────────")
-
-          
-           
-            # # rectified_stereo_occ_pcd
-            # P2 = np.hstack([cam_extrinsics, np.zeros((3,1))])
-            # rectified_stereo_occ_pcd = OccMap.get_stereo_occ_pcd(
-            #     sfm_pcd=sfm_pcd_rectified,
-            #     stereo_pcd=stereo_pcd_rectified,
-            #     K=camera_matrix,
-            #     P=P2,
-            #     to_crop=False,
-            #     bb={'x_min': -2.5, 'x_max': 2.5, 'z_min': 0.0, 'z_max': 10.0},
-            #     img_shape=(1080, 1920)
-            # )
-            
-            # o3d.t.io.write_point_cloud(
-            #     str(output_dirs["rectified_stereo_occ_pcd"] / f"rectified-stereo-occ-pcd-{idx}.ply"),
-            #     rectified_stereo_occ_pcd
-            # )
-
-
-            
-            # combine pcds
-            
-            # # red for stereo pcd
-            # colored_stereo_pcd = OccMap.color_pcd(stereo_pcd_0, color=[255, 0, 0])
-            
-            # # yellow for sfm pcd
-            # colored_sfm_pcd = OccMap.color_pcd(sfm_pcd, color=[255, 255, 0])
-
-            # combined_pcd = OccMap.combine_pcds([colored_stereo_pcd, colored_sfm_pcd])
-            # o3d.t.io.write_point_cloud(str(output_dirs["combined_pcd"] / f"combined-pcd-{idx}.ply"), combined_pcd)
-            
-            
-            # cam_extrinsics = bev_generator.get_updated_camera_extrinsics()
-            # cam_extrinsics = cam_extrinsics[:3, :3]
-            # cam_extrinsics_inv = np.linalg.inv(cam_extrinsics)
-
-            # # rectified stereo-occ-pcd
-            # rectified_stereo_occ_pcd = stereo_occ_pcd.clone()
-            # rectified_stereo_occ_pcd.rotate(cam_extrinsics_inv, center=(0, 0, 0))
-            # o3d.t.io.write_point_cloud(str(output_dirs["rectified_stereo_occ_pcd"] / f"rectified-stereo-occ-pcd-{idx}.ply"), rectified_stereo_occ_pcd)
-
 
 
         except Exception as e:

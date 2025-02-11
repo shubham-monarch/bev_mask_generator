@@ -169,6 +169,64 @@ def crop_pcd(pcd: o3d.t.geometry.PointCloud, bb: Optional[Dict[str, float]] = No
 
     return pcd.select_by_index(valid_indices)
 
+def download_s3_folder(s3_uri: str, local_dest: str):
+    """Downloads the contents of an S3 folder to a local directory.
+
+    The function preserves the folder structure within the S3 bucket
+    in the local destination.
+
+    Args:
+        s3_uri: The S3 URI of the folder to download (e.g., "s3://bucket-name/path/to/folder/").
+        local_dest: The local directory where the files will be downloaded.
+    
+    Raises:
+        ValueError: If the S3 URI is invalid.
+        Exception: If any error occurs during the download process.
+    """
+    import boto3
+    from urllib.parse import urlparse
+
+    logger = get_logger("download_s3_folder")
+
+    try:
+        # Parse the S3 URI
+        parsed_uri = urlparse(s3_uri)
+        bucket_name = parsed_uri.netloc
+        prefix = parsed_uri.path.lstrip("/")
+
+        # Ensure the local destination directory exists
+        os.makedirs(local_dest, exist_ok=True)
+
+        # Initialize S3 client
+        s3 = boto3.client('s3')
+
+        # List objects within the S3 folder
+        paginator = s3.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+
+        for page in pages:
+            if 'Contents' in page:
+                for obj in page['Contents']:
+                    s3_key = obj['Key']
+                    
+                    # Create the local file path
+                    local_file_path = os.path.join(local_dest, os.path.relpath(s3_key, prefix))
+                    
+                    # Ensure the directory exists
+                    os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+
+                    # Download the file
+                    logger.info(f"Downloading s3://{bucket_name}/{s3_key} to {local_file_path}")
+                    s3.download_file(bucket_name, s3_key, local_file_path)
+                    logger.info(f"Downloaded s3://{bucket_name}/{s3_key} to {local_file_path}")
+
+    except ValueError as e:
+        logger.error(f"Invalid S3 URI: {s3_uri}. Error: {str(e)}")
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading S3 folder {s3_uri} to {local_dest}: {str(e)}")
+        raise
+
 
 def show_help() -> None:
     """

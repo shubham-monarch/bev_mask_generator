@@ -339,3 +339,11 @@ sbevnet
 - verify train-validation integration strategy
 - explore transformers
 - explore replacing architecture components with transformers
+
+
+- pcd-rectification is not robust
+- can ground-normal calculation be more robust? 
+- how does camera-extrinsics vary across the dataset? 
+- relabel left-segmented-pcd before bev-generation
+
+- add evaluate-svo.sh
