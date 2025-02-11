@@ -20,6 +20,7 @@ from scripts.data_generator_s3 import DataGeneratorS3, LeafFolder
 from scripts.occ_mask_generator import OccMap
 from scripts.helpers import download_s3_folder
 from scripts.dairy_mask_generator import RotationUtils
+from scripts.occ_mask_generator import OccMap
 
 logger = get_logger("debug_cases")
 
@@ -30,14 +31,14 @@ def test_gt_seg_masks():
     """Case 12: Test gt seg masks generation"""
     
     
-    s3_URI = "s3://occupancy-dataset/occ-dataset/dairy/chino_valley/2024_02_13/front/front_2024-02-13-10-23-53.svo/1810_to_1952"
+    s3_URI = "s3://occupancy-dataset/occ-dataset/dairy/chino_valley/2024_02_13/front/front_2024-02-13-10-23-53.svo/1810_to_1952/frame-1822"
     
-    folder_id="150"
+    folder_id="152"
     pcd_dir = Path("debug", f"frames-{folder_id}")
     output_dir = Path("debug", folder_id)
 
-    shutil.rmtree(output_dir, ignore_errors=True)
-    shutil.rmtree(pcd_dir, ignore_errors=True)
+    # shutil.rmtree(output_dir, ignore_errors=True)
+    # shutil.rmtree(pcd_dir, ignore_errors=True)
     
     output_dirs = { 
         "left_img": output_dir / "left-imgs",
@@ -49,6 +50,7 @@ def test_gt_seg_masks():
         "seg_masks_mono": output_dir / "seg-masks-mono",
         
         "rectified_sfm_pcd": output_dir / "rectified-sfm-pcd", 
+        "rectified_pcd_projection": output_dir / "rectified-pcd-proj",
 
         "labelled-pcd": output_dir / "labelled-pcd"
     }
@@ -62,9 +64,9 @@ def test_gt_seg_masks():
         logger.warning("───────────────────────────────")
 
     # output_dirs should be empty
-    for dir_path in output_dirs.values():
-        if dir_path.exists():
-            assert not any(dir_path.iterdir()), f"Output directory {dir_path} is not empty."
+    # for dir_path in output_dirs.values():
+    #     if dir_path.exists():
+    #         assert not any(dir_path.iterdir()), f"Output directory {dir_path} is not empty."
 
 
     for dir_path in output_dirs.values():
@@ -106,7 +108,7 @@ def test_gt_seg_masks():
             
             left_img = cv2.imread(str(left_src))
             right_img = cv2.imread(str(right_src))
-            
+
             # save processed images
             left_dest = output_dirs["left_img"] / f"left-img-{idx}.jpg"
             right_dest = output_dirs["right_img"] / f"right-img-{idx}.jpg"
@@ -129,27 +131,19 @@ def test_gt_seg_masks():
             cv2.imwrite(str(output_dirs["seg_masks_rgb"] / f"seg-mask-rgb-{idx}.png"), seg_mask_rgb)
             cv2.imwrite(str(output_dirs["seg_masks_mono"] / f"seg-mask-mono-{idx}.png"), seg_mask_mono)
 
-            # # generate rectified occlusion map using both sfm and stereo point clouds
-            # cam_extrinsics = bev_generator.get_updated_camera_extrinsics()
-            # cam_extrinsics = cam_extrinsics[:3, :3]
-            # cam_extrinsics_inv = np.linalg.inv(cam_extrinsics)
             
-            # ypr_representation = RotationUtils.rotation_matrix_to_ypr(cam_extrinsics_inv)
-            # axis_angles_representation = RotationUtils.rotation_matrix_to_axis_angles(cam_extrinsics_inv)
-            
-            # logger.warning("───────────────────────────────")
-            # logger.warning(f"YPR: {ypr_representation}")
-            # logger.warning(f"Axis Angles: {axis_angles_representation}")
-            # logger.warning("───────────────────────────────")
-
-            # # save rectified-sfm point cloud
-            # sfm_pcd_rectified = sfm_pcd.clone()
-            # sfm_pcd_rectified.rotate(cam_extrinsics_inv, center=(0, 0, 0))
-            # o3d.t.io.write_point_cloud(str(output_dirs["rectified_sfm_pcd"] / f"rectified-sfm-pcd-{idx}.ply"), sfm_pcd_rectified)
-
             # save rectified-sfm point cloud
-            sfm_pcd_rectified = bev_generator.get_tilt_rectified_pcd(sfm_pcd)
-            o3d.t.io.write_point_cloud(str(output_dirs["rectified_sfm_pcd"] / f"rectified-sfm-pcd-{idx}.ply"), sfm_pcd_rectified)
+            rectified_pcd = bev_generator.get_tilt_rectified_pcd(sfm_pcd)
+            o3d.t.io.write_point_cloud(str(output_dirs["rectified_sfm_pcd"] / f"rectified-sfm-pcd-{idx}.ply"), rectified_pcd)
+
+            # project rectified pcd
+            cam_extrinsics = bev_generator.get_updated_camera_extrinsics()
+            cam_extrinsics = cam_extrinsics[:3, :]
+            logger.info(f"cam_extriniscs.shape: {cam_extrinsics.shape}")
+            rectified_pcd_proj = OccMap.project_pcd_to_img(rectified_pcd, K = camera_matrix, P = cam_extrinsics)
+            rectified_pcd_proj = cv2.resize(rectified_pcd_proj, (640, 480))
+
+            cv2.imwrite(str(output_dirs["rectified_pcd_projection"] /f"rectified-proj-{idx}.png" ), rectified_pcd_proj)
             
             # Generate and save individual class point clouds
             # read labels from yaml file

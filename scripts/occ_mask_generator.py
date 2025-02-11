@@ -184,7 +184,7 @@ class OccMap:
                            K: np.ndarray,
                            P: np.ndarray = None,
                            img_shape: Tuple[int, int] = (1080, 1920),
-                           visualize: bool = True) -> np.ndarray:
+                           visualize: bool = False) -> np.ndarray:
         """Project point cloud to image plane and visualize.
 
         Args:
