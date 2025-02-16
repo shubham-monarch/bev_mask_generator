@@ -699,6 +699,57 @@ class BEVGenerator:
         return x[:2]
     
 
+    def H_img_to_bev(self, K: np.ndarray, bev_region: dict, bev_size: int) -> np.ndarray:
+        """
+        Computes the inverse homography matrix that maps the camera image to a bird's-eye view (BEV).
+        
+        This function calculates the transformation by first defining ground points based on a given BEV 
+        region and then projecting these points onto the image using the updated camera extrinsics. The 
+        computed homography is inverted to obtain the transformation from image coordinates to BEV coordinates.
+        
+        Args:
+            K (np.ndarray): The 3x3 camera intrinsics matrix.
+            bev_region (dict): A dictionary defining the region of interest in ground coordinates (meters),
+                               with keys 'x_min', 'x_max' (lateral range) and 'z_min', 'z_max' (forward range).
+            bev_size (int): The desired size of the BEV image (bev_size x bev_size).
+        
+        Returns:
+            np.ndarray: The inverse homography matrix mapping image coordinates to BEV coordinates.
+        """
+        # calculate the ground height using the class method
+        h = self.calculate_ground_height()
+
+        # extract bev region boundaries from the dictionary
+        x_min, x_max = bev_region['x_min'], bev_region['x_max']
+        z_min, z_max = bev_region['z_min'], bev_region['z_max']
+        Y_ground = h
+        
+        # define four 3D ground points (X, Y, Z); these correspond to the corners of the region of interest
+        pts_ground = np.array([
+            [x_min, Y_ground, z_min],  # top-left ground point
+            [x_max, Y_ground, z_min],  # top-right ground point
+            [x_min, Y_ground, z_max],  # bottom-left ground point
+            [x_max, Y_ground, z_max]   # bottom-right ground point
+        ], dtype=np.float32)
+        
+        # project the ground points into image coordinates using the updated camera extrinsics
+        RT = self.get_updated_camera_extrinsics()[:3, :4]
+        pts_img = np.array([BEVGenerator.project_point_to_image(pt, K, RT) for pt in pts_ground], dtype=np.float32)
+        
+        # define the BEV image coordinates corresponding to the ground points
+        pts_bev = np.array([
+            [0, 0],                      # corresponds to (x_min, z_min)
+            [bev_size, 0],               # corresponds to (x_max, z_min)
+            [0, bev_size],               # corresponds to (x_min, z_max)
+            [bev_size, bev_size]         # corresponds to (x_max, z_max)
+        ], dtype=np.float32)
+        
+        # compute the homography matrix that maps BEV coordinates to image coordinates
+        H_bev_to_img = cv2.getPerspectiveTransform(pts_bev, pts_img)
+        # invert the homography to get the transformation from image coordinates to BEV coordinates
+        H_img_to_bev = np.linalg.inv(H_bev_to_img)
+        return H_img_to_bev
+
     def generate_ipm_image(self, 
                            input_image: np.ndarray, 
                            K: np.ndarray, 
@@ -722,43 +773,17 @@ class BEVGenerator:
         Returns:
             np.ndarray: The warped IPM image of size bev_size x bev_size.
         """
-
-        h = self.calculate_ground_height()
-
-        # ground points in world coordinates
-        x_min, x_max = bev_region['x_min'], bev_region['x_max']
-        z_min, z_max = bev_region['z_min'], bev_region['z_max']
-        Y_ground = h  
+        # obtain the inverse homography matrix by calling the helper function
+        H_img_to_bev = self.H_img_to_bev(K, bev_region, bev_size)
         
-        # Define four 3D ground points (X, Y, Z).
-        pts_ground = np.array([
-            [x_min, Y_ground, z_min],  # top-left ground point
-            [x_max, Y_ground, z_min],  # top-right
-            [x_min, Y_ground, z_max],  # bottom-left
-            [x_max, Y_ground, z_max]   # bottom-right
-        ], dtype=np.float32)
-        
-
-        # project ground points to the image
-        RT = self.get_updated_camera_extrinsics()[:3, :4]
-        pts_img = np.array([BEVGenerator.project_point_to_image(pt, K, RT) for pt in pts_ground], dtype=np.float32)
-        
-        # define the bev image coordinates
-        pts_bev = np.array([
-            [0, 0],                      # Corresponds to ground point (x_min, z_min)
-            [bev_size, 0],               # (x_max, z_min)
-            [0, bev_size],               # (x_min, z_max)
-            [bev_size, bev_size]         # (x_max, z_max)
-        ], dtype=np.float32)
-        
-        # compute the homography
-        H_bev_to_img = cv2.getPerspectiveTransform(pts_bev, pts_img)
-        # invert the homography to obtain the transform from the input image to the BEV.
-        H_img_to_bev = np.linalg.inv(H_bev_to_img)
-        
-        # warp the input image to the BEV.
-        bev_image = cv2.warpPerspective(input_image, H_img_to_bev, (bev_size, bev_size),
-                                        flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        # warp the input image to get the BEV image using the computed transform
+        bev_image = cv2.warpPerspective(
+            input_image, 
+            H_img_to_bev, 
+            (bev_size, bev_size),
+            flags=cv2.INTER_LINEAR, 
+            borderMode=cv2.BORDER_CONSTANT
+        )
         bev_image = np.flip(bev_image, axis=0)
         return bev_image
 
