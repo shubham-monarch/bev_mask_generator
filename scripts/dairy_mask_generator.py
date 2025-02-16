@@ -656,9 +656,9 @@ class BEVGenerator:
         # calculate average height of the navigable-space
         average_height = np.mean(inliers_NAVIGABLE_SPACE.point['positions'][:, 1].numpy())
 
-        self.logger.warning("───────────────────────────────")
-        self.logger.warning(f"Average height of the navigable-space: {average_height:.2f} meters")
-        self.logger.warning("───────────────────────────────")
+        # self.logger.warning("───────────────────────────────")
+        # self.logger.warning(f"Average height of the navigable-space: {average_height:.2f} meters")
+        # self.logger.warning("───────────────────────────────")
 
         return average_height
 

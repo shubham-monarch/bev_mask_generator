@@ -62,20 +62,30 @@ class LeafFolder:
                  crop_bb: dict = None,
                  color_map: str = None,
                  nx: int = None,
-                 nz: int = None):
-        '''
-        :param src_URI: occ-dataset S3 URI
-        :param dest_URI: bev-dataset S3 URI
-        :param index_json: index.json file path
-        '''
+                 nz: int = None,
+                 camera_matrix: list = None,
+                 ipm_bev_size: int = None):
+        """Initialize LeafFolder with necessary parameters for processing a leaf folder in S3.
+
+        Args:
+            src_URI: S3 URI of the source folder (occ-dataset).
+            dest_URI: S3 URI of the destination folder (bev-dataset).
+            index_json: Path to the index.json file.
+            crop_bb: Dictionary containing bounding box coordinates for cropping the image.
+            color_map: Path to the YAML file containing color mappings for segmentation.
+            nx: Width of the segmentation mask.
+            nz: Height of the segmentation mask.
+            camera_matrix: Camera intrinsic matrix (list of lists).
+            ipm_bev_size: Size of the IPM BEV image.
+        """
         assert index_json is not None, "index_json is required!"
         assert crop_bb is not None, "crop_bb is required!"
         assert color_map is not None, "color_map is required!"
         assert nx is not None, "nx is required!"
         assert nz is not None, "nz is required!"
+        assert ipm_bev_size is not None, "ipm_bev_size is required!"
         
         self.logger = get_logger("leaf-folder", level=logging.WARNING)
-        
         self.src_URI = src_URI
         self.dest_URI = dest_URI
         
@@ -85,9 +95,15 @@ class LeafFolder:
         # crop bounding box
         self.crop_bb = crop_bb
         
-        # segentation mask dimensions
+        # segmentation mask dimensions
         self.nx = nx
         self.nz = nz
+
+        # new camera_matrix parameter (used for IPM image generation)
+        self.camera_matrix = camera_matrix
+        
+        # new ipm_bev_size stored from config
+        self.ipm_bev_size = ipm_bev_size
         
         self.logger.info(f"=======================")
         self.logger.info(f"src_URI: {self.src_URI}")
@@ -98,13 +114,13 @@ class LeafFolder:
         self.logger.info(f"color_map: {self.color_map}")
         self.logger.info(f"crop_bb: {self.crop_bb}")
         self.logger.info(f"(nx, nz): ({self.nx}, {self.nz})")
+        self.logger.info(f"ipm_bev_size: {self.ipm_bev_size}")
         self.logger.info(f"=======================\n")
 
         self.s3 = boto3.client('s3')    
         self.tmp_folder = "tmp-files"
         self.INDEX = JSONIndex(index_json)
         self.bev_generator = BEVGenerator(yaml_path=self.color_map)
-        
 
     def upload_file(self, src_path: str, dest_URI: str) -> bool:
         ''' Upload a file from src_path to dest_URI'''      
@@ -208,9 +224,9 @@ class LeafFolder:
 
         pcd = o3d.t.io.read_point_cloud(pcd_path)
         
-        seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(pcd,
-                                                                        nx=self.nx, nz=self.nz,
-                                                                        bb=self.crop_bb)
+        seg_mask_mono, seg_mask_rgb = self.bev_generator.pcd_to_seg_mask(
+            pcd, nx=self.nx, nz=self.nz, bb=self.crop_bb
+        )
 
         # ==================
         # 3. upload mono / RGB segmentation masks
@@ -223,7 +239,6 @@ class LeafFolder:
         self.upload_seg_mask(seg_mask_mono, os.path.join(self.dest_URI, "seg-mask-mono.png"))
         self.upload_seg_mask(seg_mask_rgb, os.path.join(self.dest_URI, "seg-mask-rgb.png"))
         
-            
         # ==================
         # 4. process left / right images
         # ==================
@@ -257,7 +272,6 @@ class LeafFolder:
         self.upload_file(imgL_path, os.path.join(self.dest_URI, "left.jpg"))
         self.upload_file(imgR_path, os.path.join(self.dest_URI, "right.jpg"))
 
-
         # =================
         # 5. upload camera extrinsics
         # =================
@@ -276,12 +290,35 @@ class LeafFolder:
         self.upload_file(cam_extrinsics_path, os.path.join(self.dest_URI, "cam-extrinsics.npy"))
 
         # =================
-        # 6. save index
+        # 6. upload ipm images
+        # =================
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #6]: generating and uploading ipm images...")
+        self.logger.info(f"=======================\n")
+
+        # generate ipm images using provided camera_matrix
+        ipm_img_L = self.bev_generator.generate_ipm_image(
+            input_image=imgL,
+            K=self.camera_matrix,  # using the camera_matrix from YAML
+            bev_region=self.crop_bb,
+            bev_size=self.ipm_bev_size  # updated to use instance ipm_bev_size
+        )
+        
+        # save to tmp-folder 
+        ipm_img_left_path = os.path.join(self.tmp_folder, "ipm-left.png")
+        
+        cv2.imwrite(ipm_img_left_path, ipm_img_L)
+        
+        # upload to S3
+        self.upload_file(ipm_img_left_path, os.path.join(self.dest_URI, "ipm-left.png"))
+        
+        # =================
+        # 7. save index
         # =================
         self.INDEX.add_file(self.src_URI)
         self.INDEX.save_index()
 
-        
 
 class DataGeneratorS3:
     def __init__(self, config_path: str):
@@ -296,9 +333,11 @@ class DataGeneratorS3:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
             
-        # Validate required parameters
-        required_params = ['src_URIs', 'dest_folder', 'index_json', 
-                         'color_map', 'crop_bb', 'nx', 'nz']
+        # Validate required parameters, including camera_matrix and ipm_bev_size
+        required_params = [
+            'src_URIs', 'dest_folder', 'index_json', 
+            'color_map', 'crop_bb', 'nx', 'nz', 'camera_matrix', 'ipm_bev_size'
+        ]
         for param in required_params:
             assert param in config, f"{param} is required in config!"
         
@@ -310,6 +349,8 @@ class DataGeneratorS3:
         self.crop_bb = config['crop_bb']
         self.nx = config['nx']
         self.nz = config['nz']
+        self.camera_matrix = np.array(config['camera_matrix'], dtype=np.float32).reshape(3, 3)
+        self.ipm_bev_size = config['ipm_bev_size']
 
     def generate_target_URI(self, src_uri: str, dest_folder:str = None):
         ''' Make leaf-folder path relative to the bev-dataset folder '''
@@ -386,18 +427,21 @@ class DataGeneratorS3:
         self.logger.info(f"STARTING BEV-S3-DATASET GENERATION PIPELINE...")
         self.logger.info(f"=======================\n")
 
-        # leaf_URIs = self.get_leaf_folders(self.src_URIs)
         leaf_URIs = DataGeneratorS3.get_leaf_folders(self.src_URIs)
         random.shuffle(leaf_URIs)
         
         for idx, src_URI in tqdm(enumerate(leaf_URIs), total=len(leaf_URIs), desc=f"Processing leaf URIs\n"):    
             target_URI = self.generate_target_URI(src_URI, self.dest_folder)
             
-            leaf_folder = LeafFolder(src_URI, target_URI, 
-                                     self.index_json, 
-                                     self.crop_bb, 
-                                     self.color_map, 
-                                     self.nx, self.nz)
+            leaf_folder = LeafFolder(
+                src_URI, target_URI, 
+                self.index_json, 
+                self.crop_bb, 
+                self.color_map, 
+                self.nx, self.nz,
+                self.camera_matrix,
+                self.ipm_bev_size
+            )
             try:
                 leaf_folder.process_folder()
             except Exception as e:
