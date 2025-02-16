@@ -1,12 +1,19 @@
 # s3 source URIs
 src_URIs:
-  - "s3://occupancy-dataset/occ-dataset/dairy/"
-
+  - "s3://occupancy-dataset/occ-dataset/dairy/chino_valley"
+  - "s3://occupancy-dataset/occ-dataset/dairy/coolidge"
+  - "s3://occupancy-dataset/occ-dataset/dairy/escalon"
+  - "s3://occupancy-dataset/occ-dataset/dairy/Fiscalini"
+  - "s3://occupancy-dataset/occ-dataset/dairy/ghdairy"
+  - "s3://occupancy-dataset/occ-dataset/dairy/grimius"
+  - "s3://occupancy-dataset/occ-dataset/dairy/mccarty"
+  - "s3://occupancy-dataset/occ-dataset/dairy/mineral_king"
+  
 # s3 destination folder
-dest_folder: "bev-dairy-1"
+dest_folder: "bev-dairy-15-02-24"
 
 # json index path
-index_json: "index-s3/bev-dairy-1.json"
+index_json: "index-s3/bev-dairy-15-02-24.json"
 
 # color map config
 color_map: "config/dairy.yaml"
