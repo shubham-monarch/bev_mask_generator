@@ -52,7 +52,10 @@ def test_gt_seg_masks():
         "rectified_sfm_pcd": output_dir / "rectified-sfm-pcd", 
         "rectified_pcd_projection": output_dir / "rectified-pcd-proj",
 
-        "labelled-pcd": output_dir / "labelled-pcd"
+        "labelled-pcd": output_dir / "labelled-pcd",
+        "pcd_NAVIGABLE_SPACE": output_dir / "pcd-navigable-space",
+
+        "ipm_img": output_dir / "ipm-img"
     }
 
     # download s3 folder
@@ -131,34 +134,66 @@ def test_gt_seg_masks():
             cv2.imwrite(str(output_dirs["seg_masks_rgb"] / f"seg-mask-rgb-{idx}.png"), seg_mask_rgb)
             cv2.imwrite(str(output_dirs["seg_masks_mono"] / f"seg-mask-mono-{idx}.png"), seg_mask_mono)
 
-            
-            # save rectified-sfm point cloud
-            rectified_pcd = bev_generator.get_tilt_rectified_pcd(sfm_pcd)
-            o3d.t.io.write_point_cloud(str(output_dirs["rectified_sfm_pcd"] / f"rectified-sfm-pcd-{idx}.ply"), rectified_pcd)
 
-            # project rectified pcd
-            cam_extrinsics = bev_generator.get_updated_camera_extrinsics()
-            cam_extrinsics = cam_extrinsics[:3, :]
-            logger.info(f"cam_extriniscs.shape: {cam_extrinsics.shape}")
-            rectified_pcd_proj = OccMap.project_pcd_to_img(rectified_pcd, K = camera_matrix, P = cam_extrinsics)
-            rectified_pcd_proj = cv2.resize(rectified_pcd_proj, (640, 480))
+            # generate ipm image
+            # ground_height = bev_generator.calculate_ground_height()
+            ipm_img_left = bev_generator.generate_ipm_image(
+                input_image=left_img,
+                K=camera_matrix,
+                bev_region={'x_min': -2.0, 'x_max': 3.0, 'z_min': 4.0, 'z_max': 9.0},
+                bev_size=256
+            )
+            ipm_img_right = bev_generator.generate_ipm_image(
+                input_image=right_img,
+                K=camera_matrix,
+                bev_region={'x_min': -2.0, 'x_max': 3.0, 'z_min': 4.0, 'z_max': 9.0},
+                bev_size=256
+            )
+            
+            cv2.imwrite(str(output_dirs["ipm_img"] / f"ipm-img-left-{idx}.png"), ipm_img_left)
+            cv2.imwrite(str(output_dirs["ipm_img"] / f"ipm-img-right-{idx}.png"), ipm_img_right)
 
-            cv2.imwrite(str(output_dirs["rectified_pcd_projection"] /f"rectified-proj-{idx}.png" ), rectified_pcd_proj)
+
+            # # save rectified-sfm point cloud
+            # rectified_pcd = bev_generator.get_tilt_rectified_pcd(sfm_pcd)
+            # o3d.t.io.write_point_cloud(str(output_dirs["rectified_sfm_pcd"] / f"rectified-sfm-pcd-{idx}.ply"), rectified_pcd)
+
             
-            # Generate and save individual class point clouds
-            # read labels from yaml file
-            with open(f"config/dairy.yaml", 'r') as file:
-                dairy_config = yaml.safe_load(file)
+
+            # # project rectified pcd
+            # cam_extrinsics = bev_generator.get_updated_camera_extrinsics()
+            # cam_extrinsics = cam_extrinsics[:3, :]
+            # logger.info(f"cam_extriniscs.shape: {cam_extrinsics.shape}")
+            # rectified_pcd_proj = OccMap.project_pcd_to_img(rectified_pcd, K = camera_matrix, P = cam_extrinsics)
+            # rectified_pcd_proj = cv2.resize(rectified_pcd_proj, (640, 480))
+
+            # cv2.imwrite(str(output_dirs["rectified_pcd_projection"] /f"rectified-proj-{idx}.png" ), rectified_pcd_proj)
             
-            # get labels from yaml config
-            labels = sorted(dairy_config['labels'].keys())
-            labels.append(0)
+
+            # # ground plane distance estimation
+            labels = bev_generator.LABELS
             
-            for label_id in labels:
-                mask = sfm_pcd.point["label"] == label_id
-                pcd_class = sfm_pcd.select_by_index(mask.nonzero()[0])
-                output_path = output_dirs["labelled-pcd"] / f"sfm-pcd-{idx}-{label_id}.ply"
-                o3d.t.io.write_point_cloud(str(output_path), pcd_class)
+            logger.warning(f"───────────────────────────────")
+            logger.warning(f"labels: {labels}")
+            logger.warning(f"───────────────────────────────")
+
+
+            
+            
+            # # Generate and save individual class point clouds
+            # # read labels from yaml file
+            # with open(f"config/dairy.yaml", 'r') as file:
+            #     dairy_config = yaml.safe_load(file)
+            
+            # # get labels from yaml config
+            # labels = sorted(dairy_config['labels'].keys())
+            # labels.append(0)
+            
+            # for label_id in labels:
+            #     mask = sfm_pcd.point["label"] == label_id
+            #     pcd_class = sfm_pcd.select_by_index(mask.nonzero()[0])
+            #     output_path = output_dirs["labelled-pcd"] / f"sfm-pcd-{idx}-{label_id}.ply"
+            #     o3d.t.io.write_point_cloud(str(output_path), pcd_class)
             
 
 
@@ -634,6 +669,48 @@ def test_bev_generation():
                         logger.error(f"Error processing {file_path}: {e}")
                     pbar.update(1)
 
+def test_axes() -> None:
+    """
+    Test axes: generate a synthetic point cloud with 1000 points.
+    
+    The point cloud has:
+      - x coordinates: random values between 0 and 20.
+      - y coordinates: set to -10 for the first half and +10 for the remaining half.
+      - z coordinates: random values between 0 and 20.
+    Each point is also assigned a random RGB color.
+    The resulting point cloud is saved in the 'debug' folder as 'test_axes.ply'.
+    """
+    import os  # ensure os is imported
+    n_points = 1000 * 1000
+
+    # generate random x and z coordinates between 0 and 20
+    x_coords = np.random.uniform(0, 20, n_points)
+    z_coords = np.random.uniform(0, 20, n_points)
+
+    # assign y values: first half -10, second half +10
+    half = n_points // 2
+    # y_coords = np.concatenate((np.full(half, -10), np.full(n_points - half, 10)))
+
+    y_coords = np.full(n_points, -10)
+
+    # combine coordinates into (n_points, 3) format
+    points = np.vstack((x_coords, y_coords, z_coords)).T
+
+    # create point cloud and assign generated points
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+
+    # generate random RGB colors for each point (normalized to [0,1])
+    colors = np.random.randint(0, 256, (n_points, 3)).astype(np.float64) / 255.0
+    pcd.colors = o3d.utility.Vector3dVector(colors)
+
+    # ensure the debug folder exists and save the point cloud
+    output_path = Path("debug/test-axes") / "test_axes.ply"
+    os.makedirs(output_path.parent, exist_ok=True)
+    logger.info(f"Saving generated point cloud to {output_path}")
+
+    o3d.io.write_point_cloud(str(output_path), pcd)
+    logger.info("test_axes completed successfully")
 
 def show_help() -> None:
     """
