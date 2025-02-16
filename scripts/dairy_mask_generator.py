@@ -7,6 +7,7 @@ import open3d.core as o3c
 from scipy.spatial import cKDTree
 from typing import List, Tuple, Optional, Dict, Union
 import yaml
+import cv2  # required for inverse perspective mapping (IPM)
 
 from scripts.helpers import crop_pcd, mono_to_rgb_mask
 from scripts.logger import get_logger
@@ -253,10 +254,8 @@ class BEVGenerator:
                                                         num_iterations=1000)
         return plane_model.numpy()
     
+    
     def align_normal_to_y_axis(self,normal_):
-        '''
-        Rotation matrix to align the normal vector to the y-axis
-        '''
         y_axis = np.array([0, 1, 0])
         v = np.cross(normal_, y_axis)
         s = np.linalg.norm(v)
@@ -309,9 +308,7 @@ class BEVGenerator:
         return np.degrees(angle_x), np.degrees(angle_y), np.degrees(angle_z)
 
     def compute_tilt_matrix(self, pcd: o3d.t.geometry.PointCloud) -> Tuple[np.ndarray, np.ndarray]:
-        '''
-        Compute navigation-space tilt w.r.t y-axis
-        '''
+       
         ground_normal, ground_inliers = self.get_class_plane(pcd, self.LABELS["NAVIGABLE_SPACE"]["id"])
         R = self.align_normal_to_y_axis(ground_normal)
         return R, ground_normal, ground_inliers
@@ -644,4 +641,167 @@ class BEVGenerator:
             
         self.logger.warning(separator + "\n")
 
-  
+    def calculate_ground_height(self) -> float:
+        """Calculate the average height of the ground plane from the camera"""
+
+        assert self.pcd_RECTIFIED is not None, "Rectified pointcloud is required!"
+        assert self.ground_inliers is not None, "Ground inliers are not initialized!"
+
+        # get the navigable-space pcd
+        pcd_NAVIGABLE_SPACE = self.get_class_pointcloud(self.pcd_RECTIFIED, self.LABELS["NAVIGABLE_SPACE"]["id"])
+        
+        # get the inliers points
+        inliers_NAVIGABLE_SPACE = pcd_NAVIGABLE_SPACE.select_by_index(self.ground_inliers)
+        
+        # calculate average height of the navigable-space
+        average_height = np.mean(inliers_NAVIGABLE_SPACE.point['positions'][:, 1].numpy())
+
+        self.logger.warning("───────────────────────────────")
+        self.logger.warning(f"Average height of the navigable-space: {average_height:.2f} meters")
+        self.logger.warning("───────────────────────────────")
+
+        return average_height
+
+
+    def generate_ipm_image(self, 
+                           input_image: np.ndarray, 
+                           K: np.ndarray, 
+                           R: np.ndarray, 
+                           bev_region: dict = None, 
+                           bev_size=(256, 256)):
+        """
+        Generate an IPM (bird's-eye view) image from an input image.
+        
+        Parameters:
+        input_image : np.ndarray
+            The input camera image (expected shape: HxWxC, e.g., 1080x1920x3).
+        K : np.ndarray
+            The 3x3 camera intrinsics matrix.
+        R : np.ndarray
+            The 3x3 camera rotation matrix (from world to camera).
+        h : float
+            The camera height above the ground (in meters). We assume the ground plane is at Y = -h.
+        bev_region : dict
+            A dictionary defining the desired ground region in meters with keys:
+            'x_min', 'x_max' (lateral range) and 'z_min', 'z_max' (forward range).
+            For example: {'x_min': -2, 'x_max': 3, 'z_min': 4, 'z_max': 9}.
+        bev_size : int, optional
+            The desired output BEV image size (default is 256, meaning 256x256).
+        
+        Returns:
+        bev_image : np.ndarray
+            The warped IPM image of size bev_size x bev_size.
+        """
+
+        h = self.calculate_ground_height()
+
+        self.logger.warning("───────────────────────────────")
+        self.logger.warning(f"Ground height: {h:.2f} meters")
+        self.logger.warning("───────────────────────────────")
+
+        return
+
+        # calucal
+
+        # -----------------------------
+        # 1. Define the Ground Points in World Coordinates.
+        # -----------------------------
+        # Assume the camera is at the origin and the ground plane is at Y = -h.
+        # We want to cover a region:
+        #   Lateral: from x_min to x_max (in meters)
+        #   Forward: from z_min to z_max (in meters)
+        x_min, x_max = bev_region['x_min'], bev_region['x_max']
+        z_min, z_max = bev_region['z_min'], bev_region['z_max']
+        Y_ground = -h  # ground plane is at Y = -h in world coordinates.
+        
+        # Define four 3D ground points (X, Y, Z).
+        pts_ground = np.array([
+            [x_min, Y_ground, z_min],  # top-left ground point
+            [x_max, Y_ground, z_min],  # top-right
+            [x_min, Y_ground, z_max],  # bottom-left
+            [x_max, Y_ground, z_max]   # bottom-right
+        ], dtype=np.float32)
+        
+        # -----------------------------
+        # 2. Project Ground Points to the Image.
+        # -----------------------------
+        # For projection, assume the camera extrinsics are given by [R|t] with t = 0 (camera at origin).
+        # The projection model is:
+        #    s [u, v, 1]^T = K [R|0] [X, Y, Z, 1]^T.
+        def project_point(pt, K, R):
+            # Convert 3D point to homogeneous coordinate.
+            X = np.array([pt[0], pt[1], pt[2], 1.0], dtype=np.float32).reshape(4, 1)
+            # Create projection matrix: P = K [R | 0]
+            RT = np.hstack([R, np.zeros((3, 1), dtype=np.float32)])  # 3x4 matrix
+            x = K @ (RT @ X)  # 3x1 vector
+            x = x.flatten()
+            x = x / x[2]
+            return x[:2]
+        
+        pts_img = np.array([project_point(pt, K, R) for pt in pts_ground], dtype=np.float32)
+        
+        # -----------------------------
+        # 3. Define BEV (IPM) Image Coordinates.
+        # -----------------------------
+        # We want the BEV image to be of size bev_size x bev_size.
+        # Map the ground region corners to BEV pixel coordinates:
+        pts_bev = np.array([
+            [0, 0],                      # Corresponds to ground point (x_min, z_min)
+            [bev_size, 0],               # (x_max, z_min)
+            [0, bev_size],               # (x_min, z_max)
+            [bev_size, bev_size]         # (x_max, z_max)
+        ], dtype=np.float32)
+        
+        # -----------------------------
+        # 4. Compute the Homography.
+        # -----------------------------
+        # We compute H that maps BEV image coordinates (pts_bev) to image coordinates (pts_img).
+        H_bev_to_img = cv2.getPerspectiveTransform(pts_bev, pts_img)
+        # Invert H to obtain the transform from the input image to the BEV.
+        H_img_to_bev = np.linalg.inv(H_bev_to_img)
+        
+        # -----------------------------
+        # 5. Warp the Input Image to BEV.
+        # -----------------------------
+        bev_image = cv2.warpPerspective(input_image, H_img_to_bev, (bev_size, bev_size),
+                                        flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        
+        return bev_image
+
+# -----------------------------
+# Example Usage
+# -----------------------------
+if __name__ == '__main__':
+    # Dummy input image: 1080x1920 with 3 channels.
+    input_img = np.random.randint(0, 255, (1080, 1920, 3), dtype=np.uint8)
+    
+    # Define sample camera intrinsics for a 1920x1080 image.
+    fx = 1500.0
+    fy = 1500.0
+    cx = 1920.0 / 2
+    cy = 1080.0 / 2
+    K = np.array([[fx,  0, cx],
+                  [ 0, fy, cy],
+                  [ 0,  0,  1]], dtype=np.float32)
+    
+    # Define a sample rotation matrix.
+    # For example, a slight pitch downward by 5 degrees.
+    theta = np.deg2rad(5)
+    Rx = np.array([[1, 0, 0],
+                   [0, np.cos(theta), -np.sin(theta)],
+                   [0, np.sin(theta),  np.cos(theta)]], dtype=np.float32)
+    R = Rx  # Assume no yaw or roll.
+    
+    # Assume the camera is 1.5 meters above the ground.
+    h = 1.5
+    
+    # Define the desired BEV region.
+    bev_region = {'x_min': -2, 'x_max': 3, 'z_min': 4, 'z_max': 9}
+    
+    # Generate the IPM image.
+    ipm_img = generate_ipm_image(input_img, K, R, h, bev_region, bev_size=256)
+    
+    # Show the resulting BEV image.
+    cv2.imshow("IPM Image", ipm_img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
