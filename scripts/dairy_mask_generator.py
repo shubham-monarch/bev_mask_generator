@@ -662,57 +662,73 @@ class BEVGenerator:
 
         return average_height
 
+    @staticmethod
+    def project_point_to_image(pt: np.ndarray, K: np.ndarray, RT: np.ndarray) -> np.ndarray:
+        """
+        Project a 3D point from world coordinates to pixel coordinates in the image plane.
+
+        This function takes a 3D point, a camera intrinsics matrix (K), and a camera 
+        extrinsics matrix (RT) to project the 3D point onto the 2D image plane.  
+        It returns the (u, v) pixel coordinates of the projected point.
+
+        Args:
+            pt (np.ndarray): A 3D point in world coordinates (x, y, z).
+            K (np.ndarray): The 3x3 camera intrinsics matrix.
+            RT (np.ndarray): The 3x4 camera extrinsics matrix (rotation and translation).
+
+        Returns:
+            np.ndarray: The 2D pixel coordinates (u, v) of the projected point.
+        
+        Raises:
+            AssertionError: if the input matrices have incorrect shapes.
+        """
+        assert pt.shape == (3,), "Point must be a 3D coordinate (x, y, z)."
+        assert K.shape == (3, 3), "Camera intrinsics matrix K must be 3x3."
+        assert RT.shape == (3, 4), "Camera extrinsics matrix RT must be 3x4."
+
+        # Convert 3D point to homogeneous coordinates
+        X = np.array([pt[0], pt[1], pt[2], 1.0], dtype=np.float32).reshape(4, 1)
+        
+        # Project the 3D point to the image plane
+        x = K @ (RT @ X)  # 3x1 vector
+        x = x.flatten()
+        
+        # Normalize the homogeneous coordinates
+        x = x / x[2]
+        
+        return x[:2]
+    
 
     def generate_ipm_image(self, 
                            input_image: np.ndarray, 
                            K: np.ndarray, 
-                           R: np.ndarray, 
-                           bev_region: dict = None, 
-                           bev_size=(256, 256)):
+                           bev_region: dict, 
+                           bev_size: int) -> np.ndarray:
         """
-        Generate an IPM (bird's-eye view) image from an input image.
+        Generates an Inverse Perspective Mapping (IPM) or bird's-eye view image from a camera image.
         
-        Parameters:
-        input_image : np.ndarray
-            The input camera image (expected shape: HxWxC, e.g., 1080x1920x3).
-        K : np.ndarray
-            The 3x3 camera intrinsics matrix.
-        R : np.ndarray
-            The 3x3 camera rotation matrix (from world to camera).
-        h : float
-            The camera height above the ground (in meters). We assume the ground plane is at Y = -h.
-        bev_region : dict
-            A dictionary defining the desired ground region in meters with keys:
-            'x_min', 'x_max' (lateral range) and 'z_min', 'z_max' (forward range).
-            For example: {'x_min': -2, 'x_max': 3, 'z_min': 4, 'z_max': 9}.
-        bev_size : int, optional
-            The desired output BEV image size (default is 256, meaning 256x256).
+        This function transforms a given camera image into an IPM image, which simulates a view
+        from directly above the scene. It uses the camera's intrinsic parameters, the ground plane
+        height, and a specified region of interest to perform the transformation.
+        
+        Args:
+            input_image (np.ndarray): The input camera image (H x W x C, e.g., 1080x1920x3).
+            K (np.ndarray): The 3x3 camera intrinsics matrix.
+            bev_region (dict): A dictionary defining the region of interest in ground coordinates (meters)
+                                with keys 'x_min', 'x_max' (lateral range) and 'z_min', 'z_max' (forward range).
+                                E.g., {'x_min': -2, 'x_max': 3, 'z_min': 4, 'z_max': 9}.
+            bev_size (int): The desired size of the output IPM image (bev_size x bev_size).
         
         Returns:
-        bev_image : np.ndarray
-            The warped IPM image of size bev_size x bev_size.
+            np.ndarray: The warped IPM image of size bev_size x bev_size.
         """
 
         h = self.calculate_ground_height()
 
-        self.logger.warning("───────────────────────────────")
-        self.logger.warning(f"Ground height: {h:.2f} meters")
-        self.logger.warning("───────────────────────────────")
-
-        return
-
-        # calucal
-
-        # -----------------------------
-        # 1. Define the Ground Points in World Coordinates.
-        # -----------------------------
-        # Assume the camera is at the origin and the ground plane is at Y = -h.
-        # We want to cover a region:
-        #   Lateral: from x_min to x_max (in meters)
-        #   Forward: from z_min to z_max (in meters)
+        # ground points in world coordinates
         x_min, x_max = bev_region['x_min'], bev_region['x_max']
         z_min, z_max = bev_region['z_min'], bev_region['z_max']
-        Y_ground = -h  # ground plane is at Y = -h in world coordinates.
+        Y_ground = h  
         
         # Define four 3D ground points (X, Y, Z).
         pts_ground = np.array([
@@ -722,29 +738,12 @@ class BEVGenerator:
             [x_max, Y_ground, z_max]   # bottom-right
         ], dtype=np.float32)
         
-        # -----------------------------
-        # 2. Project Ground Points to the Image.
-        # -----------------------------
-        # For projection, assume the camera extrinsics are given by [R|t] with t = 0 (camera at origin).
-        # The projection model is:
-        #    s [u, v, 1]^T = K [R|0] [X, Y, Z, 1]^T.
-        def project_point(pt, K, R):
-            # Convert 3D point to homogeneous coordinate.
-            X = np.array([pt[0], pt[1], pt[2], 1.0], dtype=np.float32).reshape(4, 1)
-            # Create projection matrix: P = K [R | 0]
-            RT = np.hstack([R, np.zeros((3, 1), dtype=np.float32)])  # 3x4 matrix
-            x = K @ (RT @ X)  # 3x1 vector
-            x = x.flatten()
-            x = x / x[2]
-            return x[:2]
+
+        # project ground points to the image
+        RT = self.get_updated_camera_extrinsics()[:3, :4]
+        pts_img = np.array([BEVGenerator.project_point_to_image(pt, K, RT) for pt in pts_ground], dtype=np.float32)
         
-        pts_img = np.array([project_point(pt, K, R) for pt in pts_ground], dtype=np.float32)
-        
-        # -----------------------------
-        # 3. Define BEV (IPM) Image Coordinates.
-        # -----------------------------
-        # We want the BEV image to be of size bev_size x bev_size.
-        # Map the ground region corners to BEV pixel coordinates:
+        # define the bev image coordinates
         pts_bev = np.array([
             [0, 0],                      # Corresponds to ground point (x_min, z_min)
             [bev_size, 0],               # (x_max, z_min)
@@ -752,56 +751,14 @@ class BEVGenerator:
             [bev_size, bev_size]         # (x_max, z_max)
         ], dtype=np.float32)
         
-        # -----------------------------
-        # 4. Compute the Homography.
-        # -----------------------------
-        # We compute H that maps BEV image coordinates (pts_bev) to image coordinates (pts_img).
+        # compute the homography
         H_bev_to_img = cv2.getPerspectiveTransform(pts_bev, pts_img)
-        # Invert H to obtain the transform from the input image to the BEV.
+        # invert the homography to obtain the transform from the input image to the BEV.
         H_img_to_bev = np.linalg.inv(H_bev_to_img)
         
-        # -----------------------------
-        # 5. Warp the Input Image to BEV.
-        # -----------------------------
+        # warp the input image to the BEV.
         bev_image = cv2.warpPerspective(input_image, H_img_to_bev, (bev_size, bev_size),
                                         flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-        
+        bev_image = np.flip(bev_image, axis=0)
         return bev_image
 
-# -----------------------------
-# Example Usage
-# -----------------------------
-if __name__ == '__main__':
-    # Dummy input image: 1080x1920 with 3 channels.
-    input_img = np.random.randint(0, 255, (1080, 1920, 3), dtype=np.uint8)
-    
-    # Define sample camera intrinsics for a 1920x1080 image.
-    fx = 1500.0
-    fy = 1500.0
-    cx = 1920.0 / 2
-    cy = 1080.0 / 2
-    K = np.array([[fx,  0, cx],
-                  [ 0, fy, cy],
-                  [ 0,  0,  1]], dtype=np.float32)
-    
-    # Define a sample rotation matrix.
-    # For example, a slight pitch downward by 5 degrees.
-    theta = np.deg2rad(5)
-    Rx = np.array([[1, 0, 0],
-                   [0, np.cos(theta), -np.sin(theta)],
-                   [0, np.sin(theta),  np.cos(theta)]], dtype=np.float32)
-    R = Rx  # Assume no yaw or roll.
-    
-    # Assume the camera is 1.5 meters above the ground.
-    h = 1.5
-    
-    # Define the desired BEV region.
-    bev_region = {'x_min': -2, 'x_max': 3, 'z_min': 4, 'z_max': 9}
-    
-    # Generate the IPM image.
-    ipm_img = generate_ipm_image(input_img, K, R, h, bev_region, bev_size=256)
-    
-    # Show the resulting BEV image.
-    cv2.imshow("IPM Image", ipm_img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
