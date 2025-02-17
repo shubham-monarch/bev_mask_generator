@@ -307,14 +307,37 @@ class LeafFolder:
         
         # save to tmp-folder 
         ipm_img_left_path = os.path.join(self.tmp_folder, "ipm-left.png")
-        
         cv2.imwrite(ipm_img_left_path, ipm_img_L)
         
         # upload to S3
         self.upload_file(ipm_img_left_path, os.path.join(self.dest_URI, "ipm-left.png"))
         
         # =================
-        # 7. save index
+        # 7. upload H_img_to_bev
+        # =================
+
+        self.logger.info(f"=======================")
+        self.logger.info(f"[STEP #7]: uploading H_img_to_bev...")
+        self.logger.info(f"=======================\n")
+        
+        H_img_to_bev = self.bev_generator.H_img_to_bev(
+            K=self.camera_matrix,
+            bev_region=self.crop_bb,
+            bev_size=self.ipm_bev_size
+        )
+        
+        (ref_height, ref_width) = imgL.shape[:2]
+        ipm_m = np.concatenate([H_img_to_bev.flatten(), [ref_height, ref_width]])
+        
+        # save to tmp-folder
+        ipm_m_path = os.path.join(self.tmp_folder, "H_img_to_bev.npy")
+        np.save(ipm_m_path, ipm_m)
+        
+        # upload to S3
+        self.upload_file(ipm_m_path, os.path.join(self.dest_URI, "H_img_to_bev.npy"))
+
+        # =================
+        # 8. save index
         # =================
         self.INDEX.add_file(self.src_URI)
         self.INDEX.save_index()

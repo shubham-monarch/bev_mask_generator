@@ -698,7 +698,6 @@ class BEVGenerator:
         
         return x[:2]
     
-
     def H_img_to_bev(self, K: np.ndarray, bev_region: dict, bev_size: int) -> np.ndarray:
         """
         Computes the inverse homography matrix that maps the camera image to a bird's-eye view (BEV).
@@ -706,6 +705,7 @@ class BEVGenerator:
         This function calculates the transformation by first defining ground points based on a given BEV 
         region and then projecting these points onto the image using the updated camera extrinsics. The 
         computed homography is inverted to obtain the transformation from image coordinates to BEV coordinates.
+        The homography matrix is normalized before being returned.
         
         Args:
             K (np.ndarray): The 3x3 camera intrinsics matrix.
@@ -746,8 +746,14 @@ class BEVGenerator:
         
         # compute the homography matrix that maps BEV coordinates to image coordinates
         H_bev_to_img = cv2.getPerspectiveTransform(pts_bev, pts_img)
+        
         # invert the homography to get the transformation from image coordinates to BEV coordinates
         H_img_to_bev = np.linalg.inv(H_bev_to_img)
+        
+        # Normalize the homography matrix
+        if H_img_to_bev[2, 2] != 0:
+            H_img_to_bev = H_img_to_bev / H_img_to_bev[2, 2]
+        
         return H_img_to_bev
 
     def generate_ipm_image(self, 
