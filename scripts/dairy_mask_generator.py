@@ -733,7 +733,12 @@ class BEVGenerator:
         ], dtype=np.float32)
         
         # project the ground points into image coordinates using the updated camera extrinsics
-        RT = self.get_updated_camera_extrinsics()[:3, :4]
+        axis_angles: np.ndarray = np.array([np.deg2rad(25), 0, 0])
+        R, _ = cv2.Rodrigues(axis_angles)
+        t = np.array([0, 0, 0])
+        RT = np.concatenate([R, t.reshape(-1, 1)], axis=1)
+        
+        # RT = self.get_updated_camera_extrinsics()[:3, :4]
         pts_img = np.array([BEVGenerator.project_point_to_image(pt, K, RT) for pt in pts_ground], dtype=np.float32)
         
         # define the BEV image coordinates corresponding to the ground points
