@@ -6,7 +6,12 @@ from pathlib import Path
 import argparse
 import sys
 import random
-
+import pyzed.sl as sl
+import cv2
+import numpy as np
+import tempfile
+import os
+from tqdm import tqdm
 
 from scripts.helpers import get_logger
 
@@ -82,7 +87,10 @@ class EvalDataS3:
             if farm in folder:
                 return True, farm
         return False, ""
-        
+
+    
+
+
     @staticmethod
     def sample_svo_from_folders(s3_uri: str, farms_to_sample: List[str], local_dir: str) -> Dict[str, str]:
         """
@@ -136,27 +144,40 @@ class EvalDataS3:
 
                 svo_uri = random.choice(svo_uris)
 
-                logger.warning(f"───────────────────────────────") 
-                logger.warning(f"dest_folder: {dest_folder.as_posix()}")
-                logger.warning(f"downloading {svo_uri}")
-                logger.warning(f"───────────────────────────────")
+                # logger.warning(f"───────────────────────────────") 
+                # logger.warning(f"dest_folder: {dest_folder.as_posix()}")
+                # logger.warning(f"downloading {svo_uri}")
+                # logger.warning(f"───────────────────────────────")
                 
-                dest_file = Path(dest_folder / Path(svo_uri).name)
+                # dest_file = Path(dest_folder / Path(svo_uri).name)
 
-                try:
-                    bucket = svo_uri.split('/')[2]
-                    key = '/'.join(svo_uri.split('/')[3:])
-                    s3_client.download_file(
-                        Bucket=bucket,
-                        Key=key,
-                        Filename=str(dest_file)
-                    )
-                    downloaded_files[farm_name] = str(dest_file)
-                    logger.info(f"Downloaded {svo_uri} to {dest_file}")
-                except Exception as e:
-                    logger.error(f"Error downloading {svo_uri}: {e}", exc_info=True)
+                # try:
+                #     bucket = svo_uri.split('/')[2]
+                #     key = '/'.join(svo_uri.split('/')[3:])
+                #     s3_client.download_file(
+                #         Bucket=bucket,
+                #         Key=key,
+                #         Filename=str(dest_file)
+                #     )
+                #     downloaded_files[farm_name] = str(dest_file)
+                #     logger.info(f"Downloaded {svo_uri} to {dest_file}")
+                # except Exception as e:
+                #     logger.error(f"Error downloading {svo_uri}: {e}", exc_info=True)
 
-              
+                dest_URI_base = "s3://occupancy-dataset/svo-images"
+                dest_URI_suffix = f"{farm_name}/{folder_name}/{Path(svo_uri).name}"
+                dest_URI = f"{dest_URI_base.rstrip('/')}/{dest_URI_suffix.lstrip('/')}"
+                
+                logger.warning(f"───────────────────────────────") 
+                logger.warning(f"dest_URI_base: {dest_URI_base}")
+                logger.warning(f"dest_URI_suffix: {dest_URI_suffix}")
+                logger.warning(f"dest_URI: {dest_URI}")
+                logger.warning(f"───────────────────────────────")
+
+                EvalDataS3.process_svo(svo_uri, dest_URI, num_frames=20)
+
+
+
                 pbar.update(1)
 
     @staticmethod
@@ -219,6 +240,106 @@ class EvalDataS3:
         
         return svo_uris, total_files
 
+    @staticmethod
+    def process_svo(svo_uri: str, output_s3_uri: str, num_frames: int = 20) -> None:
+        """
+        Downloads an SVO file, extracts frames, processes them, and uploads to S3.
+
+        Args:
+            svo_uri (str): S3 URI of the source SVO file
+            output_s3_uri (str): S3 URI where processed images should be uploaded
+            num_frames (int): Number of frames to sample from the SVO file
+
+        Raises:
+            ValueError: If the provided URIs are invalid
+            Exception: If an error occurs during processing
+        """
+        logger.info(f"processing svo file: {svo_uri}")
+
+        # create temporary directory for processing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir_path = Path(temp_dir)
+            svo_filename = Path(svo_uri).name
+            local_svo_path = temp_dir_path / svo_filename
+
+            try:
+                # download svo file
+                bucket = svo_uri.split('/')[2]
+                key = '/'.join(svo_uri.split('/')[3:])
+                s3_client = boto3.client('s3')
+                logger.info(f"downloading {svo_uri} to {local_svo_path}")
+                s3_client.download_file(bucket, key, str(local_svo_path))
+
+                # initialize zed camera
+                init_params = sl.InitParameters()
+                init_params.set_from_svo_file(str(local_svo_path))
+                zed = sl.Camera()
+                status = zed.open(init_params)
+                if status != sl.ERROR_CODE.SUCCESS:
+                    raise Exception(f"failed to open svo file: {status}")
+
+                # ensure that the camera closes even if processing fails
+                try:
+                    # get total frame count using correct api method
+                    total_frames = zed.get_svo_number_of_frames()
+                    if total_frames < num_frames:
+                        logger.warning(f"svo file has fewer frames ({total_frames}) than requested ({num_frames})")
+                        frame_indices = range(total_frames)
+                    else:
+                        # randomly sample frame indices
+                        frame_indices = sorted(random.sample(range(total_frames), num_frames))
+
+                    # prepare image handle
+                    image = sl.Mat()
+
+                    # process each selected frame
+                    for idx, frame_num in enumerate(frame_indices):
+                        # set frame position
+                        zed.set_svo_position(frame_num)
+
+                        # grab frame
+                        if zed.grab() == sl.ERROR_CODE.SUCCESS:
+                            # retrieve left image
+                            image_left = sl.Mat()
+                            zed.retrieve_image(image_left, sl.VIEW.LEFT)
+                            img_opencv_left = image_left.get_data()
+                            img_resized_left = cv2.resize(img_opencv_left, (640, 480))
+                            temp_img_path_left = temp_dir_path / f"frame_{frame_indices[idx]}_left.jpg"
+                            cv2.imwrite(str(temp_img_path_left), img_resized_left)
+                            output_key_left = f"{output_s3_uri.split('s3://')[-1]}/frame_{frame_indices[idx]}_left.jpg"
+                            output_bucket = output_s3_uri.split('/')[2]
+                            s3_client.upload_file(
+                                str(temp_img_path_left),
+                                output_bucket,
+                                '/'.join(output_key_left.split('/')[1:])
+                            )
+                            logger.info(f"uploaded left frame {idx} to {output_key_left}")
+
+                            # retrieve right image
+                            image_right = sl.Mat()
+                            zed.retrieve_image(image_right, sl.VIEW.RIGHT)
+                            img_opencv_right = image_right.get_data()
+                            img_resized_right = cv2.resize(img_opencv_right, (640, 480))
+                            temp_img_path_right = temp_dir_path / f"frame_{frame_indices[idx]}_right.jpg"
+                            cv2.imwrite(str(temp_img_path_right), img_resized_right)
+                            output_key_right = f"{output_s3_uri.split('s3://')[-1]}/frame_{frame_indices[idx]}_right.jpg"
+                            s3_client.upload_file(
+                                str(temp_img_path_right),
+                                output_bucket,
+                                '/'.join(output_key_right.split('/')[1:])
+                            )
+                            logger.info(f"uploaded right frame {idx} to {output_key_right}")
+                        else:
+                            logger.warning(f"failed to grab frame {frame_num} from {svo_uri}")
+                finally:
+                    zed.close()
+
+            except Exception as e:
+                logger.error(f"error processing svo file {svo_uri}: {str(e)}", exc_info=True)
+                raise
+
+            logger.info(f"completed processing {svo_uri}")
+
 
 if __name__ == "__main__":
     
@@ -247,14 +368,14 @@ if __name__ == "__main__":
     s3_uri = dairy_folder_URI
 
 
-    # get folders with svo files
-    folders_with_svo = EvalDataS3.get_unique_svo_folders(s3_uri)
+    # # get folders with svo files
+    # folders_with_svo = EvalDataS3.get_unique_svo_folders(s3_uri)
    
-    logger.info(f"───────────────────────────────")
-    logger.info(f"found {len(folders_with_svo)} folders with svo files.")
-    for idx, folder in enumerate(folders_with_svo):
-        logger.info(f"{idx}: {folder}")
-    logger.info(f"───────────────────────────────")
+    # logger.info(f"───────────────────────────────")
+    # logger.info(f"found {len(folders_with_svo)} folders with svo files.")
+    # for idx, folder in enumerate(folders_with_svo):
+    #     logger.info(f"{idx}: {folder}")
+    # logger.info(f"───────────────────────────────")
     
 
     # sample and download svo files
