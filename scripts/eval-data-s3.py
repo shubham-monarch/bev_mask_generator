@@ -12,6 +12,7 @@ import numpy as np
 import tempfile
 import os
 from tqdm import tqdm
+import json  # added for JSON processing of the index file
 
 from scripts.helpers import get_logger
 
@@ -174,7 +175,7 @@ class EvalDataS3:
                 logger.warning(f"dest_URI: {dest_URI}")
                 logger.warning(f"───────────────────────────────")
 
-                EvalDataS3.process_svo(svo_uri, dest_URI, num_frames=20)
+                EvalDataS3.process_svo_uri(svo_uri, dest_URI, num_frames=20)
 
 
 
@@ -241,9 +242,12 @@ class EvalDataS3:
         return svo_uris, total_files
 
     @staticmethod
-    def process_svo(svo_uri: str, output_s3_uri: str, num_frames: int = 20) -> None:
+    def process_svo_uri(svo_uri: str, output_s3_uri: str, num_frames: int = 20) -> None:
         """
         Downloads an SVO file, extracts frames, processes them, and uploads to S3.
+        
+        After successful processing, the SVO file's URI is recorded in the index file at
+        'index-s3/eval-data-s3.json' so that it is not processed again.
 
         Args:
             svo_uri (str): S3 URI of the source SVO file
@@ -255,6 +259,27 @@ class EvalDataS3:
             Exception: If an error occurs during processing
         """
         logger.info(f"processing svo file: {svo_uri}")
+
+        # check processed index json file to skip already processed SVO files
+        index_dir = Path("index-s3")
+        index_file = index_dir / "eval-data-s3.json"
+        try:
+            index_dir.mkdir(parents=True, exist_ok=True)
+            if index_file.exists():
+                with index_file.open("r") as f:
+                    processed_files = json.load(f)
+                if not isinstance(processed_files, list):
+                    logger.warning(f"index file {index_file} does not contain a list; reinitializing it.")
+                    processed_files = []
+            else:
+                processed_files = []
+        except Exception as io_err:
+            logger.error(f"error handling index file '{index_file}': {io_err}", exc_info=True)
+            processed_files = []  # default to empty list if there is an error
+
+        if svo_uri in processed_files:
+            logger.info(f"svo file {svo_uri} already processed, skipping further processing.")
+            return
 
         # create temporary directory for processing
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -280,26 +305,18 @@ class EvalDataS3:
 
                 # ensure that the camera closes even if processing fails
                 try:
-                    # get total frame count using correct api method
                     total_frames = zed.get_svo_number_of_frames()
                     if total_frames < num_frames:
                         logger.warning(f"svo file has fewer frames ({total_frames}) than requested ({num_frames})")
                         frame_indices = range(total_frames)
                     else:
-                        # randomly sample frame indices
                         frame_indices = sorted(random.sample(range(total_frames), num_frames))
 
-                    # prepare image handle
                     image = sl.Mat()
 
-                    # process each selected frame
                     for idx, frame_num in enumerate(frame_indices):
-                        # set frame position
                         zed.set_svo_position(frame_num)
-
-                        # grab frame
                         if zed.grab() == sl.ERROR_CODE.SUCCESS:
-                            # retrieve left image
                             image_left = sl.Mat()
                             zed.retrieve_image(image_left, sl.VIEW.LEFT)
                             img_opencv_left = image_left.get_data()
@@ -315,7 +332,6 @@ class EvalDataS3:
                             )
                             logger.info(f"uploaded left frame {idx} to {output_key_left}")
 
-                            # retrieve right image
                             image_right = sl.Mat()
                             zed.retrieve_image(image_right, sl.VIEW.RIGHT)
                             img_opencv_right = image_right.get_data()
@@ -339,6 +355,15 @@ class EvalDataS3:
                 raise
 
             logger.info(f"completed processing {svo_uri}")
+
+        # update index file after successful processing
+        try:
+            processed_files.append(svo_uri)
+            with index_file.open("w") as f:
+                json.dump(processed_files, f, indent=2)
+            logger.info(f"added svo file {svo_uri} to index file '{index_file}'.")
+        except Exception as write_err:
+            logger.error(f"error updating index file '{index_file}': {write_err}", exc_info=True)
 
 
 if __name__ == "__main__":
