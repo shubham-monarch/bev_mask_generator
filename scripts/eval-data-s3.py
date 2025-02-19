@@ -143,19 +143,18 @@ class EvalDataS3:
                 logger.warning(f"No SVO files found in folder: {folder}")
                 continue
 
-            svo_uri = random.choice(svo_uris)
+            for svo_uri in svo_uris:
+                dest_URI_base = "s3://occupancy-dataset/svo-images"
+                dest_URI_suffix = f"{farm_name}/{folder_name}/{Path(svo_uri).name}"
+                dest_URI = f"{dest_URI_base.rstrip('/')}/{dest_URI_suffix.lstrip('/')}"
 
-            dest_URI_base = "s3://occupancy-dataset/svo-images"
-            dest_URI_suffix = f"{farm_name}/{folder_name}/{Path(svo_uri).name}"
-            dest_URI = f"{dest_URI_base.rstrip('/')}/{dest_URI_suffix.lstrip('/')}"
+                # logger.warning(f"───────────────────────────────")
+                # logger.warning(f"dest_URI_base: {dest_URI_base}")
+                # logger.warning(f"dest_URI_suffix: {dest_URI_suffix}")
+                # logger.warning(f"dest_URI: {dest_URI}")
+                # logger.warning(f"───────────────────────────────")
 
-            # logger.warning(f"───────────────────────────────")
-            # logger.warning(f"dest_URI_base: {dest_URI_base}")
-            # logger.warning(f"dest_URI_suffix: {dest_URI_suffix}")
-            # logger.warning(f"dest_URI: {dest_URI}")
-            # logger.warning(f"───────────────────────────────")
-
-            EvalDataS3.process_svo_uri(svo_uri, dest_URI, num_frames)
+                EvalDataS3.process_svo_uri(svo_uri, dest_URI, num_frames)
 
     @staticmethod
     def get_svo_uris_in_folder(s3_uri: str) -> Tuple[List[str], int]:
