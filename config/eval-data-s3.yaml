@@ -1,25 +1,18 @@
 # default s3 uri to search for .svo files
 dairy_folder_URI: "s3://sg-new-data/dairy_farm/"
 
-# farms_to_sample : [
-#     chino_valley, 
-#     coolidge, 
-#     escalon, 
-#     fiscalini, 
-#     ghdairy, 
-#     grimius, 
-#     mccarty, 
-#     mineral_king, 
-#     open_sky
-#     ]
-
-
 farms_to_sample : [
     chino_valley, 
-    coolidge,
-    open_sky,
+    coolidge, 
+    escalon, 
+    fiscalini, 
+    ghdairy, 
+    grimius, 
+    mccarty, 
+    mineral_king, 
+    open_sky
     ]
 
 
-# dest_: ""
-# dest_folder: "bev-dummy"
+
+svo_frames_to_sample: 20

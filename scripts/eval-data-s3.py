@@ -93,7 +93,10 @@ class EvalDataS3:
 
 
     @staticmethod
-    def sample_svo_from_folders(s3_uri: str, farms_to_sample: List[str], local_dir: str) -> Dict[str, str]:
+    def sample_svo_from_folders(s3_uri: str, 
+                                farms_to_sample: List[str], 
+                                local_dir: str, 
+                                num_frames: int = 20) -> Dict[str, str]:
         """
         Downloads one SVO file from each specified farm folder while maintaining the directory structure.
 
@@ -118,68 +121,41 @@ class EvalDataS3:
             if is_valid:
                 valid_folders.append((folder, farm_name))
 
-        logger.info(f"───────────────────────────────")
-        logger.info(f"found {len(valid_folders)} valid folders")
-        logger.info(f"valid folders: {valid_folders}")
-        logger.info(f"───────────────────────────────")
+        # logger.info(f"───────────────────────────────")
+        # logger.info(f"found {len(valid_folders)} valid folders")
+        # logger.info(f"valid folders: {valid_folders}")
+        # logger.info(f"───────────────────────────────")
 
         downloaded_files = {}
         s3_client = boto3.client('s3')
 
         from tqdm import tqdm
-
         downloaded_files = {}
         s3_client = boto3.client('s3')
 
-        with tqdm(total=len(valid_folders), desc="Downloading SVO files") as pbar:
-            for folder, farm_name in valid_folders:
-                
-                folder_name = folder.replace(f"s3://sg-new-data/dairy_farm/{farm_name}/", "")
-                dest_folder = Path(Path(local_dir) / farm_name / folder_name)
-                dest_folder.mkdir(parents=True, exist_ok=True)
+        for folder, farm_name in valid_folders:
+            folder_name = folder.replace(f"s3://sg-new-data/dairy_farm/{farm_name}/", "")
+            dest_folder = Path(Path(local_dir) / farm_name / folder_name)
+            dest_folder.mkdir(parents=True, exist_ok=True)
 
-                svo_uris, _ = EvalDataS3.get_svo_uris_in_folder(folder)
-                if not svo_uris:
-                    logger.warning(f"No SVO files found in folder: {folder}")
-                    continue
+            svo_uris, _ = EvalDataS3.get_svo_uris_in_folder(folder)
+            if not svo_uris:
+                logger.warning(f"No SVO files found in folder: {folder}")
+                continue
 
-                svo_uri = random.choice(svo_uris)
+            svo_uri = random.choice(svo_uris)
 
-                # logger.warning(f"───────────────────────────────") 
-                # logger.warning(f"dest_folder: {dest_folder.as_posix()}")
-                # logger.warning(f"downloading {svo_uri}")
-                # logger.warning(f"───────────────────────────────")
-                
-                # dest_file = Path(dest_folder / Path(svo_uri).name)
+            dest_URI_base = "s3://occupancy-dataset/svo-images"
+            dest_URI_suffix = f"{farm_name}/{folder_name}/{Path(svo_uri).name}"
+            dest_URI = f"{dest_URI_base.rstrip('/')}/{dest_URI_suffix.lstrip('/')}"
 
-                # try:
-                #     bucket = svo_uri.split('/')[2]
-                #     key = '/'.join(svo_uri.split('/')[3:])
-                #     s3_client.download_file(
-                #         Bucket=bucket,
-                #         Key=key,
-                #         Filename=str(dest_file)
-                #     )
-                #     downloaded_files[farm_name] = str(dest_file)
-                #     logger.info(f"Downloaded {svo_uri} to {dest_file}")
-                # except Exception as e:
-                #     logger.error(f"Error downloading {svo_uri}: {e}", exc_info=True)
+            # logger.warning(f"───────────────────────────────")
+            # logger.warning(f"dest_URI_base: {dest_URI_base}")
+            # logger.warning(f"dest_URI_suffix: {dest_URI_suffix}")
+            # logger.warning(f"dest_URI: {dest_URI}")
+            # logger.warning(f"───────────────────────────────")
 
-                dest_URI_base = "s3://occupancy-dataset/svo-images"
-                dest_URI_suffix = f"{farm_name}/{folder_name}/{Path(svo_uri).name}"
-                dest_URI = f"{dest_URI_base.rstrip('/')}/{dest_URI_suffix.lstrip('/')}"
-                
-                logger.warning(f"───────────────────────────────") 
-                logger.warning(f"dest_URI_base: {dest_URI_base}")
-                logger.warning(f"dest_URI_suffix: {dest_URI_suffix}")
-                logger.warning(f"dest_URI: {dest_URI}")
-                logger.warning(f"───────────────────────────────")
-
-                EvalDataS3.process_svo_uri(svo_uri, dest_URI, num_frames=20)
-
-
-
-                pbar.update(1)
+            EvalDataS3.process_svo_uri(svo_uri, dest_URI, num_frames)
 
     @staticmethod
     def get_svo_uris_in_folder(s3_uri: str) -> Tuple[List[str], int]:
@@ -258,7 +234,10 @@ class EvalDataS3:
             ValueError: If the provided URIs are invalid
             Exception: If an error occurs during processing
         """
-        logger.info(f"processing svo file: {svo_uri}")
+
+        logger.info(f"───────────────────────────────")
+        logger.info(f"Processing {svo_uri}...")
+        logger.info(f"───────────────────────────────")
 
         # check processed index json file to skip already processed SVO files
         index_dir = Path("index-s3")
@@ -278,7 +257,7 @@ class EvalDataS3:
             processed_files = []  # default to empty list if there is an error
 
         if svo_uri in processed_files:
-            logger.info(f"svo file {svo_uri} already processed, skipping further processing.")
+            logger.warning(f"svo file {svo_uri} already processed, skipping further processing.")
             return
 
         # create temporary directory for processing
@@ -292,7 +271,7 @@ class EvalDataS3:
                 bucket = svo_uri.split('/')[2]
                 key = '/'.join(svo_uri.split('/')[3:])
                 s3_client = boto3.client('s3')
-                logger.info(f"downloading {svo_uri} to {local_svo_path}")
+                # logger.info(f"downloading {svo_uri} to {local_svo_path}")
                 s3_client.download_file(bucket, key, str(local_svo_path))
 
                 # initialize zed camera
@@ -330,7 +309,7 @@ class EvalDataS3:
                                 output_bucket,
                                 '/'.join(output_key_left.split('/')[1:])
                             )
-                            logger.info(f"uploaded left frame {idx} to {output_key_left}")
+                            # logger.info(f"uploaded left frame {idx} to {output_key_left}")
 
                             image_right = sl.Mat()
                             zed.retrieve_image(image_right, sl.VIEW.RIGHT)
@@ -344,7 +323,7 @@ class EvalDataS3:
                                 output_bucket,
                                 '/'.join(output_key_right.split('/')[1:])
                             )
-                            logger.info(f"uploaded right frame {idx} to {output_key_right}")
+                            # logger.info(f"uploaded right frame {idx} to {output_key_right}")
                         else:
                             logger.warning(f"failed to grab frame {frame_num} from {svo_uri}")
                 finally:
@@ -385,9 +364,11 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
         dairy_folder_URI = config.get('dairy_folder_URI')
         farms_to_sample = config.get('farms_to_sample')
+        svo_frames_to_sample = config.get('svo_frames_to_sample', 20)
 
     assert dairy_folder_URI is not None, "dairy_folder_URI is not set in the config file"
     assert farms_to_sample is not None, "farms_to_sample is not set in the config file"
+    assert svo_frames_to_sample is not None, "svo_frames_to_sample is not set in the config file"
     
     # process yaml config
     s3_uri = dairy_folder_URI
@@ -407,5 +388,6 @@ if __name__ == "__main__":
     EvalDataS3.sample_svo_from_folders(
         s3_uri=s3_uri,
         farms_to_sample=farms_to_sample,
-        local_dir="eval-data/svo-files"
+        local_dir="eval-data/svo-files",
+        num_frames=svo_frames_to_sample
     )
